@@ -7,8 +7,12 @@ set(PART xc7a100tcsg324-1)
 set(TOP_LEVEL_ENTITY uart_rx)
 
 set(RTL_DIR ${PROJECT_SOURCE_DIR}/rtl)
-set(RTL_SRCS)
-set(CONSTRAINT_SRCS)
+set(RTL_SRCS
+    ${RTL_DIR}/transport/uart_rx.vhdl
+)
+set(CONSTRAINT_SRCS
+    ${RTL_DIR}/constraints.xdc
+)
 
 define_fpga_project(
     PART ${PART}
