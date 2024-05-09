@@ -1,6 +1,9 @@
 library ieee;
-use ieee.std_logic_1164.all;
-use ieee.numeric_std.all;
+    use ieee.std_logic_1164.all;
+    use ieee.numeric_std.all;
+
+library work;
+    use work.uart.all;
 
 entity uart_rx is
     port (
@@ -13,29 +16,11 @@ end uart_rx;
 
 architecture behavioral of uart_rx is
 
-    -- (100MHz)/(115200Hz) ~= 868
-    constant clks_per_baud : integer := 868;
-
     -- double sample i_rx to assist with metastability
     signal rx_dup : std_logic := '0';
     signal rx     : std_logic := '0';
 
-    -- state machine
-    type State_t is (
-        WAITING_FOR_DATA, -- Initial state
-        START_BIT,        -- Beginning of word
-        SAMPLE_DATA_BIT,  -- Data bits
-        STOP_BIT,         -- End of word
-        SPINNING          -- Wait for `counter` number of clk periods to pass, then transition to `next_state`
-    );
-    signal state : State_t := WAITING_FOR_DATA;
-
-    -- Supplementary state for SAMPLE_DATA_BIT
-    signal bit_to_sample : integer range 0 to 7 := 0;
-
-    -- Supplementary state for SPINNING
-    signal counter : integer range 0 to clks_per_baud := 0;
-    signal next_state : State_t := WAITING_FOR_DATA;
+    signal uart : Uart_t := INIT_UART_T;
 
 begin
 
@@ -52,14 +37,14 @@ begin
     state_machine : process(i_clk)
     begin
         if rising_edge(i_clk) then
-            case state is
+            case uart.state is
 
                 when WAITING_FOR_DATA =>
                     -- Upon first detection of rx low (start bit), wait for a half baud
                     if rx = '0' then
-                        counter <= clks_per_baud / 2;
-                        state <= SPINNING;
-                        next_state <= START_BIT;
+                        uart.counter <= clks_per_baud / 2;
+                        uart.state <= SPINNING;
+                        uart.next_state <= START_BIT;
                     end if;
 
                 when START_BIT =>
@@ -67,42 +52,42 @@ begin
                         -- Invalidate previous data
                         o_valid <= '0';
 
-                        bit_to_sample <= 0;
-                        counter <= clks_per_baud;
-                        state <= SPINNING;
-                        next_state <= SAMPLE_DATA_BIT;
+                        uart.current_bit <= 0;
+                        uart.counter <= clks_per_baud;
+                        uart.state <= SPINNING;
+                        uart.next_state <= DATA_BIT;
                     else
                         -- Should not be reached, but it probably means that
                         -- the start bit was spurious.  Transit back to WAITING_FOR_DATA.
-                        state <= WAITING_FOR_DATA;
+                        uart.state <= WAITING_FOR_DATA;
                     end if;
 
-                when SAMPLE_DATA_BIT =>
-                    o_data(bit_to_sample) <= rx;
+                when DATA_BIT =>
+                    o_data(uart.current_bit) <= rx;
 
-                    counter <= clks_per_baud;
-                    if bit_to_sample < 7 then
-                        bit_to_sample <= bit_to_sample + 1;
-                        next_state <= SAMPLE_DATA_BIT;
+                    uart.counter <= clks_per_baud;
+                    if uart.current_bit < 7 then
+                        uart.current_bit <= uart.current_bit + 1;
+                        uart.next_state <= DATA_BIT;
                     else
-                        next_state <= STOP_BIT;
+                        uart.next_state <= STOP_BIT;
                     end if;
 
-                    state <= SPINNING;
+                    uart.state <= SPINNING;
 
                 when STOP_BIT =>
                     if rx = '1' then
                         o_valid <= '1';
                     end if;
 
-                    state <= WAITING_FOR_DATA;
+                    uart.state <= WAITING_FOR_DATA;
 
                 when SPINNING =>
                     -- Spin for `counter` clock cycles, then transit to `next_state`
-                    if counter = 0 then
-                        state <= next_state;
+                    if uart.counter = 0 then
+                        uart.state <= uart.next_state;
                     else
-                        counter <= counter - 1;
+                        uart.counter <= uart.counter - 1;
                     end if;
             end case;
         end if;

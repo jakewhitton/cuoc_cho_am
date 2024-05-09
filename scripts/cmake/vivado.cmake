@@ -20,6 +20,15 @@ function(define_fpga_project)
 
     set(VIVADO_WORKING_DIR ${CMAKE_CURRENT_BINARY_DIR}/.vivado)
 	file(MAKE_DIRECTORY ${VIVADO_WORKING_DIR})
+
+	# Extract actual filenames from RTL_SRCS for DEPENDS
+	set(RTL_SRCS_FILES ${RTL_SRCS})
+	list(
+	    FILTER RTL_SRCS_FILES
+	    EXCLUDE REGEX "^library:.*$"
+	)
+
+	message(${RTL_SRCS_FILES} ${CONSTRAINT_SRCS})
 	
     # Define command for bitstream generation
     add_custom_command(
@@ -31,6 +40,7 @@ function(define_fpga_project)
             --constraints ${CONSTRAINT_SRCS}
             --output ${BITSTREAM_PATH}
 		WORKING_DIRECTORY ${VIVADO_WORKING_DIR}
+		DEPENDS ${RTL_SRCS_FILES} ${CONSTRAINT_SRCS}
     )
 
     # Define target for bitstream generation
@@ -47,6 +57,6 @@ function(define_fpga_project)
             --part ${PART}
             --bitstream ${BITSTREAM_PATH}
 		WORKING_DIRECTORY ${VIVADO_WORKING_DIR}
+		DEPENDS ${BITSTREAM_PATH}
 	)
-	add_dependencies(program build)
 endfunction(define_fpga_project)

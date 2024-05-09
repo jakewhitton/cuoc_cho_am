@@ -48,23 +48,64 @@ set_part -quiet $part
 puts "done!"
 puts ""
 
-# Read RTL sources
-if {[llength $sources] > 0} {
-	foreach source $sources {
-		puts -nonewline "Reading RTL source \"$source\"..."
+# Parse flat sources list into heirarchical list of libraries
+set libraries [dict create]
+set library_name ""
+set library {}
+for {set i 0} {$i <= [llength $sources]} {incr i} {
+	set source [expr {$i == [llength $sources] ? "" : [lindex $sources $i]}]
+	if {$i == [llength $sources] || [regexp {^library:(.*)$} $source _ match]} {
+		# Save previously constructed library if it exists
+		if {[llength $library] > 0} {
+			dict set libraries $library_name $library
+		}
+
+		# Construct new library if needed
+		if {$i < [llength $sources]} {
+			set library_name $match
+			set library {}
+		}
+	} else {
+		lappend library $source
+	}
+}
+puts ""
+
+puts "RTL sources = \{"
+dict for {library library_sources} $libraries {
+
+	puts -nonewline "    "
+	if {$library eq ""} {
+		puts -nonewline "<no library>"
+	} else {
+		puts -nonewline "$library"
+	}
+	puts ": \["
+
+	foreach source $library_sources {
+
+		# Print source
+		puts "        $source"
+
+		# Read source into design
 		switch [file extension $source] {
 			".vhdl" {
-				read_vhdl $source
-				puts "done!"
+				if {$library eq ""} {
+					read_vhdl $source
+				} else {
+					read_vhdl -library $library $source
+				}
 			}
 			default {
-				puts "error"
+				puts ""
 				exit_with_code "\"$source\" is not a recognizable RTL source"
 			}
 		}
 	}
-	puts ""
+    puts "    \],"
 }
+puts "}"
+puts ""
 
 # Read constraints
 if {[llength $constraints] > 0} {
