@@ -5,8 +5,11 @@ create_clock -name clk -period 10.00 [get_ports {i_clk}];
 # uart_rxd
 set_property -dict {PACKAGE_PIN C4 IOSTANDARD LVCMOS33} [get_ports {i_rx}];
 
+# uart_txd
+set_property -dict {PACKAGE_PIN D4 IOSTANDARD LVCMOS33} [get_ports {o_tx}];
+
 # o_valid
-set_property -dict {PACKAGE_PIN V11 IOSTANDARD LVCMOS33} [get_ports {o_valid}];
+#set_property -dict {PACKAGE_PIN V11 IOSTANDARD LVCMOS33} [get_ports {o_valid}];
 
 # o_data
 set_property -dict {PACKAGE_PIN H17 IOSTANDARD LVCMOS33} [get_ports {o_data[0]}];

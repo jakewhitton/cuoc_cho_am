@@ -12,6 +12,8 @@ set(RTL_SRCS
     library:sw_transport
     ${RTL_DIR}/sw_transport/uart/uart.vhdl
     ${RTL_DIR}/sw_transport/uart/uart_rx.vhdl
+    ${RTL_DIR}/sw_transport/uart/uart_tx.vhdl
+    ${RTL_DIR}/sw_transport/uart/uart_loopback.vhdl
 )
 set(CONSTRAINT_SRCS
     ${RTL_DIR}/constraints.xdc

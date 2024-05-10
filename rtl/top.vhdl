@@ -6,22 +6,20 @@ library sw_transport;
 
 entity top is
     port (
-        i_clk   : in  std_logic;
-        i_rx    : in  std_logic;
-        o_valid : out std_logic;
+        i_clk : in  std_logic;
+        i_rx  : in  std_logic;
+        o_tx  : out std_logic;
         o_data  : out std_logic_vector(7 downto 0)
     );
 end top;
 
 architecture structure of top is
 begin
-
-    uart_rx : sw_transport.uart.uart_rx
+    uart_loopback : sw_transport.uart.uart_loopback
         port map (
             i_clk,
             i_rx,
-            o_valid,
+            o_tx,
             o_data
         );
-
 end structure;

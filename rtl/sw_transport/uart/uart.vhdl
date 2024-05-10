@@ -3,6 +3,36 @@ library ieee;
 
 package uart is
 
+    -- Component for looping back data from UART
+    component uart_loopback is
+        port (
+            i_clk : in  std_logic;
+            i_rx  : in  std_logic;
+            o_tx  : out std_logic;
+            o_data  : out std_logic_vector(7 downto 0)
+        );
+    end component;
+
+    -- Component for reading data from UART
+    component uart_rx is
+        port (
+            i_clk   : in  std_logic;
+            i_rx    : in  std_logic;
+            o_valid : out std_logic;
+            o_data  : out std_logic_vector(7 downto 0)
+        );
+    end component;
+
+    -- Component for writing data to UART
+    component uart_tx is
+        port (
+            i_clk      : in  std_logic;
+            o_tx       : out std_logic;
+            i_valid    : in  std_logic;
+            i_data     : in  std_logic_vector(7 downto 0)
+        );
+    end component;
+
     -- Define ratio of input clk <-> baud rate: (100MHz)/(115200Hz) ~= 868
     constant clks_per_baud : integer := 868;
 
@@ -29,14 +59,5 @@ package uart is
         counter     => 0,
         next_state  => WAITING_FOR_DATA
     );
-
-    component uart_rx is
-        port (
-            i_clk   : in  std_logic;
-            i_rx    : in  std_logic;
-            o_valid : out std_logic;
-            o_data  : out std_logic_vector(7 downto 0)
-        );
-    end component;
 
 end package uart;
