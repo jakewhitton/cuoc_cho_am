@@ -2,18 +2,18 @@ source [file join [file dirname [info script]] "util.tcl"]
 
 set spec [dict create]
 dict set spec "description" \
-	"programs bitstream onto the device"
+    "programs bitstream onto the device"
 dict set spec "args" {
-	{
-		"part"
-		"--part|-p"
-		"str"
-	}
-	{
-		"bitstream"
-		"--bitstream|-b"
-		"file"
-	}
+    {
+        "part"
+        "--part|-p"
+        "str"
+    }
+    {
+        "bitstream"
+        "--bitstream|-b"
+        "file"
+    }
 }
 set args [parse_cli_args $spec]
 
@@ -33,20 +33,20 @@ open_hw_target -quiet
 set device ""
 set found_device "false"
 foreach hw_device [get_hw_devices -quiet] {
-	if {[string match "[get_property PART $hw_device]*" $part]} {
-		set device $hw_device
-		set found_device "true"
-		break
-	}
+    if {[string match "[get_property PART $hw_device]*" $part]} {
+        set device $hw_device
+        set found_device "true"
+        break
+    }
 }
 if {$found_device} {
-	puts "done!"
+    puts "done!"
 } else {
-	puts "error"
-	puts ""
-	disconnect_hw_server -quiet
-	close_hw_manager -quiet
-	exit_with_code "could not find device\n"
+    puts "error"
+    puts ""
+    disconnect_hw_server -quiet
+    close_hw_manager -quiet
+    exit_with_code "could not find device\n"
 }
 puts ""
 
