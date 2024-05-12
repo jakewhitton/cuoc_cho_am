@@ -15,7 +15,7 @@ This project aims at building, from scratch:
 ## How is it?
 
 Prototype Stage:
-- [ ] Implement hw <-> sw transport via UART
+- [x] Implement hw <-> sw transport via UART
 - [ ] Implement audio output via PWM signal on mono 3.5mm audio jack
 - [ ] Implement audio input via PDM microphone
 - [ ] Write userspace program to successfully send & receive data over serial port
