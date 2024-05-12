@@ -40,7 +40,7 @@ function(define_fpga_project)
             --constraints ${CONSTRAINT_SRCS}
             --output ${BITSTREAM_PATH}
 		WORKING_DIRECTORY ${VIVADO_WORKING_DIR}
-		DEPENDS ${RTL_SRCS_FILES} ${CONSTRAINT_SRCS}
+		DEPENDS ${RTL_SRCS_FILES} ${CONSTRAINT_SRCS} ${TCL_DIR}/build.tcl
     )
 
     # Define target for bitstream generation
@@ -57,6 +57,6 @@ function(define_fpga_project)
             --part ${PART}
             --bitstream ${BITSTREAM_PATH}
 		WORKING_DIRECTORY ${VIVADO_WORKING_DIR}
-		DEPENDS ${BITSTREAM_PATH}
+		DEPENDS ${BITSTREAM_PATH} ${TCL_DIR}/program.tcl
 	)
 endfunction(define_fpga_project)
