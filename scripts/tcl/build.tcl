@@ -69,7 +69,6 @@ for {set i 0} {$i <= [llength $sources]} {incr i} {
 		lappend library $source
 	}
 }
-puts ""
 
 puts "RTL sources = \{"
 dict for {library library_sources} $libraries {
