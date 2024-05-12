@@ -7,14 +7,13 @@ library work;
 
 entity uart_loopback is
     port (
-        i_clk   : in  std_logic;
-        i_rx    : in  std_logic;
-        o_tx    : out std_logic;
-        o_data  : out std_logic_vector(7 downto 0)
+        i_clk : in  std_logic;
+        i_rx  : in  std_logic;
+        o_tx  : out std_logic
     );
 end uart_loopback;
 
-architecture behavioral of uart_loopback is
+architecture structure of uart_loopback is
 
     signal valid : std_logic                    := '0';
     signal data  : std_logic_vector(7 downto 0) := (others => '0');
@@ -37,6 +36,4 @@ begin
             data
         );
 
-    o_data <= data;
-
-end behavioral;
+end structure;

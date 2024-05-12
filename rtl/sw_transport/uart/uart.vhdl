@@ -8,8 +8,7 @@ package uart is
         port (
             i_clk : in  std_logic;
             i_rx  : in  std_logic;
-            o_tx  : out std_logic;
-            o_data  : out std_logic_vector(7 downto 0)
+            o_tx  : out std_logic
         );
     end component;
 

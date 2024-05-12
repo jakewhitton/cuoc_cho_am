@@ -16,10 +16,11 @@ end uart_rx;
 
 architecture behavioral of uart_rx is
 
-    -- double sample i_rx to assist with metastability
+    -- State for rx_sampler
     signal rx_dup : std_logic := '0';
     signal rx     : std_logic := '0';
 
+    -- State for receive_sm
     signal uart : Uart_t := INIT_UART_T;
 
 begin
@@ -33,8 +34,8 @@ begin
         end if;
     end process rx_sampler;
 
-    -- State machine for uart reading
-    state_machine : process(i_clk)
+    -- Read data from double-sampled rx signal
+    receive_sm : process(i_clk)
     begin
         if rising_edge(i_clk) then
             case uart.state is
@@ -91,6 +92,6 @@ begin
                     end if;
             end case;
         end if;
-    end process state_machine;
+    end process receive_sm;
 
 end behavioral;
