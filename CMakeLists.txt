@@ -9,11 +9,17 @@ set(TOP_LEVEL_ENTITY top)
 set(RTL_DIR ${PROJECT_SOURCE_DIR}/rtl)
 set(RTL_SRCS
     ${RTL_DIR}/top.vhdl
-    library:sw_transport
-    ${RTL_DIR}/sw_transport/uart/uart.vhdl
-    ${RTL_DIR}/sw_transport/uart/uart_rx.vhdl
-    ${RTL_DIR}/sw_transport/uart/uart_tx.vhdl
-    ${RTL_DIR}/sw_transport/uart/uart_loopback.vhdl
+    #library:sw_transport
+    #${RTL_DIR}/sw_transport/uart/uart.vhdl
+    #${RTL_DIR}/sw_transport/uart/uart_rx.vhdl
+    #${RTL_DIR}/sw_transport/uart/uart_tx.vhdl
+    #${RTL_DIR}/sw_transport/uart/uart_loopback.vhdl
+    library:external_transport
+    ${RTL_DIR}/external_transport/spdif/spdif.vhdl
+    ${RTL_DIR}/external_transport/spdif/spdif_loopback.vhdl
+    ${RTL_DIR}/external_transport/spdif/spdif_rx.vhdl
+    ${RTL_DIR}/external_transport/spdif/spdif_rx_serial_bridge.vhdl
+    ${RTL_DIR}/external_transport/spdif/spdif_tx_spoof.vhdl
 )
 set(CONSTRAINT_SRCS
     ${RTL_DIR}/constraints.xdc
