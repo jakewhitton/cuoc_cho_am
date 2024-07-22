@@ -1,6 +1,6 @@
 # clk
 set_property -dict {PACKAGE_PIN E3 IOSTANDARD LVCMOS33} [get_ports {i_clk}];
-create_clock -name clk -period 3.0 [get_ports {i_clk}];
+create_clock -name clk -period 81.3802083332 [get_ports {i_clk}];
 
 # S/PDIF in
 set_property -dict {PACKAGE_PIN D14 IOSTANDARD LVCMOS33} [get_ports {i_spdif}];
