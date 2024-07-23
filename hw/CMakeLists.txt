@@ -26,10 +26,11 @@ set(RTL_SRCS
     # Communication between fpga <-> DAC/ADC
     library:external_transport
     ${RTL_DIR}/external_transport/spdif/spdif.vhdl
-    ${RTL_DIR}/external_transport/spdif/spdif_loopback.vhdl
     ${RTL_DIR}/external_transport/spdif/spdif_rx.vhdl
     ${RTL_DIR}/external_transport/spdif/spdif_rx_serial_bridge.vhdl
-    ${RTL_DIR}/external_transport/spdif/spdif_tx_spoof.vhdl
+    ${RTL_DIR}/external_transport/spdif/spdif_tx.vhdl
+    #${RTL_DIR}/external_transport/spdif/spdif_loopback.vhdl
+    #${RTL_DIR}/external_transport/spdif/spdif_tx_spoof.vhdl
 )
 
 # Constraint sources
