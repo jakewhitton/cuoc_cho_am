@@ -1,0 +1,1 @@
+source "$BR2_EXTERNAL_VM_PATH/package/driver/Config.in"

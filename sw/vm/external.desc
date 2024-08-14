@@ -1,2 +1,2 @@
-name: vm
+name: VM
 desc: External buildroot tree for QEMU/kernel development
