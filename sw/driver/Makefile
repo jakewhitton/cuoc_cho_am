@@ -1,12 +1,13 @@
-SRC_DIR := $(realpath $(BR2_EXTERNAL_VM_PATH)/../driver)
-
-obj-m += $(addsuffix .o, $(notdir $(basename $(wildcard $(SRC_DIR)/*.c))))
 ccflags-y := -DDEBUG -g -std=gnu99 -Wno-declaration-after-statement
+
+obj-m += cco.o
+cco-objs += driver.o
+cco-objs += helper.o
 
 .PHONY: all clean
 
-all: /tmp/test
-	$(MAKE) -C '$(LINUX_DIR)' M='$(SRC_DIR)' modules
+all:
+	$(MAKE) -C '$(LINUX_DIR)' M='$(CURDIR)' modules
 
 clean:
-	$(MAKE) -C '$(LINUX_DIR)' M='$(SRC_DIR)' clean
+	$(MAKE) -C '$(LINUX_DIR)' M='$(CURDIR)' clean

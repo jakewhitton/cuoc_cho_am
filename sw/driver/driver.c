@@ -1,13 +1,7 @@
 #include <linux/kernel.h>
 #include <linux/module.h>
-#include <linux/random.h>
 
-int get_random_int(void)
-{
-	int random;
-	get_random_bytes((void*)&random, sizeof(random));
-	return random;
-}
+#include "helper.h"
 
 static int __init kmod_init(void)
 {
