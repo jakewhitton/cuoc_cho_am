@@ -31,3 +31,5 @@ define_fpga_project(
     RTL_SRCS ${RTL_SRCS}
     CONSTRAINT_SRCS ${CONSTRAINT_SRCS}
 )
+
+add_subdirectory(sw)
