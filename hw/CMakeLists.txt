@@ -31,6 +31,12 @@ set(RTL_SRCS
     ${RTL_DIR}/external_transport/spdif/spdif_tx.vhdl
     #${RTL_DIR}/external_transport/spdif/spdif_loopback.vhdl
     #${RTL_DIR}/external_transport/spdif/spdif_tx_spoof.vhdl
+
+    # Helper utilities
+	library:util
+    ${RTL_DIR}/util/signals/signals.vhdl
+    ${RTL_DIR}/util/signals/clk_generator.vhdl
+    ${RTL_DIR}/util/signals/phaser.vhdl
 )
 
 # Constraint sources
