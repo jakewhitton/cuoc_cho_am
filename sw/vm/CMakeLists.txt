@@ -6,6 +6,17 @@ file(GLOB DRIVER_SRC ../driver/*)
 
 
 #===================================Building===================================#
+# Give helpful error if buildroot submodule has not yet been cloned
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/buildroot/.git")
+    message(FATAL_ERROR
+	    "Buildroot submodule has not been cloned...\n"
+        "Please run `git submodule update --init --recursive`"
+	)
+endif()
+
+# Query number of processors on current machine for passing to -j for make
+execute_process(COMMAND nproc OUTPUT_VARIABLE NPROC OUTPUT_STRIP_TRAILING_WHITESPACE)
+
 # Define custom command for generating rootfs image that qemu boots from
 #
 # Notes:
@@ -35,7 +46,7 @@ add_custom_command(
         # See above note 2
         BUILDROOT_OUTPUT_DIR=${CMAKE_CURRENT_BINARY_DIR} 
         DRIVER_VERSION=${DRIVER_VERSION}
-        make -C ${CMAKE_CURRENT_SOURCE_DIR}
+        make -C ${CMAKE_CURRENT_SOURCE_DIR} -j${NPROC}
     COMMENT "Building QEMU rootfs image"
     DEPENDS ${DRIVER_SRC}
 )
