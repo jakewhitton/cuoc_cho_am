@@ -71,31 +71,33 @@ begin
     --
     maintain_timing_state_proc : process(sclk)
     begin
-        -- Increment frame
-        if subframe = '1' and bit_pos = LAST_STATUS_BIT and timeslot = '1' then
-            if frame < 191 then
-                frame <= frame + 1;
-            else
-                frame <= 0;
+        if rising_edge(sclk) then
+            -- Increment frame
+            if subframe = '1' and bit_pos = LAST_STATUS_BIT and timeslot = '1' then
+                if frame < 191 then
+                    frame <= frame + 1;
+                else
+                    frame <= 0;
+                end if;
             end if;
-        end if;
 
-        -- Increment subframe
-        if bit_pos = LAST_STATUS_BIT and timeslot = '1' then
-            subframe <= not subframe;
-        end if;
-
-        -- Increment bit
-        if timeslot = '1' then
-            if bit_pos < 31 then
-                bit_pos <= bit_pos + 1;
-            else
-                bit_pos <= 0;
+            -- Increment subframe
+            if bit_pos = LAST_STATUS_BIT and timeslot = '1' then
+                subframe <= not subframe;
             end if;
-        end if;
 
-        -- Increment timeslot
-        timeslot <= not timeslot;
+            -- Increment bit
+            if timeslot = '1' then
+                if bit_pos < 31 then
+                    bit_pos <= bit_pos + 1;
+                else
+                    bit_pos <= 0;
+                end if;
+            end if;
+
+            -- Increment timeslot
+            timeslot <= not timeslot;
+        end if;
     end process;
 
     -- Note: states in the state machine have the responsibility of
