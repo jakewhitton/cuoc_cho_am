@@ -16,10 +16,8 @@ set_property -dict [list \
   CONFIG.PRIMARY_PORT {i_clk} \
 ] [get_ips pll]
 
-set $files [get_files /home/jake/Downloads/vivado/vivado.srcs/sources_1/ip/pll/pll.xci]
-print $files
-
-exit 0
+set files [get_files /home/jake/Downloads/vivado/vivado.srcs/sources_1/ip/pll/pll.xci]
+puts $files
 
 generate_target {instantiation_template} $files
 

@@ -12,9 +12,11 @@ set(TOP_LEVEL_ENTITY top)
 # Note: use library:<name> to indicate that all following source
 # files should be packaged together in a VHDL library
 set(RTL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/rtl)
+set(IP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ip)
 set(RTL_SRCS
     # RTL sources that don't belong to any library
     ${RTL_DIR}/top.vhdl
+    ${RTL_DIR}/ip.vhdl
 
     # Communication between host <-> fpga
     library:sw_transport
@@ -33,10 +35,13 @@ set(RTL_SRCS
     #${RTL_DIR}/external_transport/spdif/spdif_tx_spoof.vhdl
 
     # Helper utilities
-	library:util
+    library:util
     ${RTL_DIR}/util/signals/signals.vhdl
     ${RTL_DIR}/util/signals/clk_generator.vhdl
     ${RTL_DIR}/util/signals/phaser.vhdl
+
+    # IP
+    ${IP_DIR}/pll.xci
 )
 
 # Constraint sources

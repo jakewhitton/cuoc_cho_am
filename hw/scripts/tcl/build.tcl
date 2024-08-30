@@ -95,6 +95,9 @@ dict for {library library_sources} $libraries {
                     read_vhdl -library $library $source
                 }
             }
+            ".xci" {
+                read_ip $source
+            }
             default {
                 puts ""
                 exit_with_code "\"$source\" is not a recognizable RTL source"
@@ -115,6 +118,10 @@ if {[llength $constraints] > 0} {
     }
     puts ""
 }
+
+# Generate targets for added IP
+generate_target all [get_ips]
+synth_ip [get_ips]
 
 # Synthesize Design
 insert_separator "Synthesizing" "yellow"
