@@ -97,6 +97,19 @@ dict for {library library_sources} $libraries {
             }
             ".xci" {
                 read_ip $source
+
+                # Include any auto-generated VHDL source that lives in the IP
+                # directory, used to pick up component declarations
+                #set ip_gen_dir [file dirname $source]
+                #set ip_vhdl_srcs [glob -directory $ip_gen_dir -nocomplain "*.vho"]
+                #foreach ip_vhdl_src $ip_vhdl_srcs {
+                #    puts "        |__>$source"
+                #    if {$library eq ""} {
+                #        read_vhdl $ip_vhdl_src
+                #    } else {
+                #        read_vhdl -library $library $ip_vhdl_src
+                #    }
+                #}
             }
             default {
                 puts ""

@@ -1,4 +1,14 @@
 #=================================Configuration================================#
+# Directory where vivado process will be spawned
+#
+# Note: passing `-notrace -nolog -nojournal` is not enough to prevent vivado
+# from writing artifacts to the CWD.  This variable allows us to keep these
+# artifacts neat and organized.
+set(VIVADO_WORKING_DIR ${CMAKE_CURRENT_BINARY_DIR}/.vivado)
+
+# Directory where IP modules should be generated
+set(IP_GEN_DIR ${VIVADO_WORKING_DIR}/.ip)
+
 # Target part for design
 #
 # Note: current build is for Arty A7-100T
@@ -12,11 +22,9 @@ set(TOP_LEVEL_ENTITY top)
 # Note: use library:<name> to indicate that all following source
 # files should be packaged together in a VHDL library
 set(RTL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/rtl)
-set(IP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/ip)
-set(RTL_SRCS
+set(RTL_SRC
     # RTL sources that don't belong to any library
     ${RTL_DIR}/top.vhdl
-    ${RTL_DIR}/ip.vhdl
 
     # Communication between host <-> fpga
     library:sw_transport
@@ -39,44 +47,82 @@ set(RTL_SRCS
     ${RTL_DIR}/util/signals/signals.vhdl
     ${RTL_DIR}/util/signals/clk_generator.vhdl
     ${RTL_DIR}/util/signals/phaser.vhdl
+)
 
-    # IP
-    ${IP_DIR}/pll.xci
+# Define each IP module that needs to be instantiated and synthesized
+#
+# Each module listed will result in a call to `generate_ip.tcl --ip <module>`,
+# which is responsible for generating ${IP_GEN_DIR}/<module>/<module>.xci.
+#
+# These generated .xci files will, in turn, be passed for synthesis via
+# `build.tcl <...> --ip <xci_file> [<xci_file> ...]`
+#
+# When an entry is added here, you must provide an IP configuration by modifying
+# `get_ip_config` in generate_ip.tcl
+set(IP_MODULES
+    pll
 )
 
 # Constraint sources
 set(CONSTRAINT_SRCS
     ${RTL_DIR}/constraints.xdc
 )
+
+# Path where final synthesized bitstream should reside
+set(BITSTREAM_PATH ${CMAKE_CURRENT_BINARY_DIR}/${TOP_LEVEL_ENTITY}.bit)
 #==============================================================================#
 
 
 
 #===================================Building===================================#
+# Directory where TCL scripts are being stored
+set(TCL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/scripts/tcl)
+
 # Command for spawning vivado process in batch mode
 set(VIVADO_CMD
   vivado -quiet -notrace -nolog -nojournal -mode batch
 )
 
-# Even though we pass `-notrace -nolog -nojournal` to vivado, it
-# still creates artifacts in the working directory as it runs the
-# supplied TCL script
-#
-# To keep things tidy, we give the vivado process its own special
-# working directory so that these artifacts will be kept organized
-set(VIVADO_WORKING_DIR ${CMAKE_CURRENT_BINARY_DIR}/.vivado)
 file(MAKE_DIRECTORY ${VIVADO_WORKING_DIR})
+file(MAKE_DIRECTORY ${IP_GEN_DIR})
 
-# Extract actual filenames from RTL_SRCS for use in DEPENDS for custom commands
-set(RTL_SRCS_FILES ${RTL_SRCS})
+# Perform handling for each IP module
+set(IP_XCI_SRC "")
+foreach(IP_MODULE IN LISTS IP_MODULES)
+    # Add custom command for generating IP module
+    set(XCI_PATH ${IP_GEN_DIR}/${IP_MODULE}/${IP_MODULE}.xci)
+    add_custom_command(
+        OUTPUT ${XCI_PATH}
+        COMMAND
+            ${VIVADO_CMD}
+                -source ${TCL_DIR}/generate_ip.tcl
+                -tclargs
+                --part ${PART}
+                --output-dir ${IP_GEN_DIR}
+                --ip ${IP_MODULE}
+        WORKING_DIRECTORY ${VIVADO_WORKING_DIR}
+        DEPENDS ${TCL_DIR}/generate_ip.tcl
+        COMMENT "Generating IP for \"${IP_MODULE}\" module"
+    )
+
+    # Add generated IP core to IP_XCI_SRC
+    list(APPEND IP_XCI_SRC ${XCI_PATH})
+endforeach()
+
+# If using IP, bundle all IP-related src under a newly created 'ip' library
+if(IP_XCI_SRC)
+    list(APPEND RTL_SRC "library:ip")
+    list(APPEND RTL_SRC ${IP_XCI_SRC})
+endif()
+
+# Extract actual filenames from RTL_SRC for use in DEPENDS for custom commands
+set(RTL_SRC_FILES ${RTL_SRC})
 list(
-    FILTER RTL_SRCS_FILES
+    FILTER RTL_SRC_FILES
     EXCLUDE REGEX "^library:.*$"
 )
 
 # Define custom command for bitstream generation
-set(TCL_DIR ${CMAKE_CURRENT_SOURCE_DIR}/scripts/tcl)
-set(BITSTREAM_PATH ${CMAKE_CURRENT_BINARY_DIR}/${TOP_LEVEL_ENTITY}.bit)
 add_custom_command(
     OUTPUT ${BITSTREAM_PATH}
     COMMAND
@@ -85,12 +131,12 @@ add_custom_command(
             -tclargs
             --part ${PART}
             --top-level-entity ${TOP_LEVEL_ENTITY}
-            --sources ${RTL_SRCS}
+            --sources ${RTL_SRC}
             --constraints ${CONSTRAINT_SRCS}
             --output ${BITSTREAM_PATH}
     WORKING_DIRECTORY ${VIVADO_WORKING_DIR}
     DEPENDS
-        ${RTL_SRCS_FILES}
+        ${RTL_SRC_FILES}
         ${CONSTRAINT_SRCS}
         ${TCL_DIR}/build.tcl
 )

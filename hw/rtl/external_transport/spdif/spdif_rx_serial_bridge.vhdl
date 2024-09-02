@@ -99,7 +99,7 @@ begin
             aes3_sync <= aes3 & aes3_sync(3 downto 1); -- synthetizes  shift reg
          end if;
       end if;
-   end process;	
+   end process;
 
    -- Detects edge on sampled input in the way of comparsion of delayed input and its current 
    -- state on XOR gate.

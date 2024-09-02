@@ -7,8 +7,8 @@ library sw_transport;
 library external_transport;
     use external_transport.spdif.all;
 
-library work;
-    use work.ip.all;
+library ip;
+    use ip.all;
 
 entity top is
     port (
@@ -42,7 +42,7 @@ begin
     --        o_sclk    => sclk
     --    );
 
-    generate_spdif_tx_clk : work.ip.pll
+    generate_spdif_tx_clk : ip.pll
         port map (
             o_spdif_tx_clk => spdif_tx_clk,
             reset          => '0',
