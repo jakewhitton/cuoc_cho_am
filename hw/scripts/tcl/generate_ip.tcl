@@ -1,31 +1,5 @@
 source [file join [file dirname [info script]] "util.tcl"]
 
-set spec [dict create]
-dict set spec "description" \
-    "configures and generates IP, writing resulting *.xci file to disk"
-dict set spec "args" {
-    {
-        "part"
-        "--part|-p"
-        "str"
-    }
-    {
-        "output_dir"
-        "--output-dir|-o"
-        "str"
-    }
-    {
-        "ip"
-        "--ip|-i"
-        "str"
-    }
-}
-set args [parse_cli_args $spec]
-
-set part [dict get $args "part"]
-set output_dir [dict get $args "output_dir"]
-set ip [dict get $args "ip"]
-
 proc get_ip_config {ip} {
     set config [dict create]
 
@@ -61,10 +35,7 @@ proc get_ip_config {ip} {
     return $config
 }
 
-proc generate_ip {ip} {
-
-    upvar part part
-    upvar output_dir output_dir
+proc generate_ip {ip part} {
 
     # Fetch IP configuration params
     set config  [get_ip_config $ip]
@@ -82,8 +53,6 @@ proc generate_ip {ip} {
     
     # Create .xci file
     set files [create_ip  \
-        -dir $output_dir  \
-        -force            \
         -name $name       \
         -vendor $vendor   \
         -library $library \
@@ -95,7 +64,30 @@ proc generate_ip {ip} {
     set_property -dict $props [get_ips $ip]
 
     # Generate all targets for newly created IP
-    generate_target all $files
+	generate_target all $files
+
+    # Synthesize IP
+    synth_ip [get_ips $ip]
 }
 
-generate_ip $ip
+set spec [dict create]
+dict set spec "description" \
+    "configures and generates IP, writing resulting *.xci file to disk"
+dict set spec "args" {
+    {
+        "part"
+        "--part|-p"
+        "str"
+    }
+    {
+        "ip"
+        "--ip|-i"
+        "str"
+    }
+}
+set args [parse_cli_args $spec]
+
+set part [dict get $args "part"]
+set ip [dict get $args "ip"]
+
+generate_ip $ip $part

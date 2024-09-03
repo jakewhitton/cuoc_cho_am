@@ -131,10 +131,6 @@ if {[llength $constraints] > 0} {
     puts ""
 }
 
-# Generate targets for added IP
-generate_target all [get_ips]
-synth_ip [get_ips]
-
 # Synthesize Design
 insert_separator "Synthesizing" "yellow"
 synth_design -top $top_level_entity -part $part

@@ -1,14 +1,4 @@
 #=================================Configuration================================#
-# Directory where vivado process will be spawned
-#
-# Note: passing `-notrace -nolog -nojournal` is not enough to prevent vivado
-# from writing artifacts to the CWD.  This variable allows us to keep these
-# artifacts neat and organized.
-set(VIVADO_WORKING_DIR ${CMAKE_CURRENT_BINARY_DIR}/.vivado)
-
-# Directory where IP modules should be generated
-set(IP_GEN_DIR ${VIVADO_WORKING_DIR}/.ip)
-
 # Target part for design
 #
 # Note: current build is for Arty A7-100T
@@ -52,7 +42,7 @@ set(RTL_SRC
 # Define each IP module that needs to be instantiated and synthesized
 #
 # Each module listed will result in a call to `generate_ip.tcl --ip <module>`,
-# which is responsible for generating ${IP_GEN_DIR}/<module>/<module>.xci.
+# which is responsible for generating ${IP_SRCS_DIR}/<module>/<module>.xci.
 #
 # These generated .xci files will, in turn, be passed for synthesis via
 # `build.tcl <...> --ip <xci_file> [<xci_file> ...]`
@@ -83,22 +73,40 @@ set(VIVADO_CMD
   vivado -quiet -notrace -nolog -nojournal -mode batch
 )
 
+# Directory where vivado process will be spawned
+#
+# Note: passing `-notrace -nolog -nojournal` is not enough to prevent vivado
+# from writing artifacts to the CWD.  This variable allows us to keep these
+# artifacts neat and organized.
+set(VIVADO_WORKING_DIR ${CMAKE_CURRENT_BINARY_DIR}/.vivado)
 file(MAKE_DIRECTORY ${VIVADO_WORKING_DIR})
-file(MAKE_DIRECTORY ${IP_GEN_DIR})
+
+# By deafult, for a given IP module, vivado splits IP generation artifacts
+# across two different directories:
+#
+#   1. $(cwd)/.srcs/sources_1/ip/<module>: holds <module>.xci
+#
+#   2. $(cwd)/.gen/sources_1/ip/<module>: holds everything else
+#
+set(IP_SRCS_DIR ${VIVADO_WORKING_DIR}/.srcs/sources_1/ip)
+set(IP_GEN_DIR ${VIVADO_WORKING_DIR}/.gen/sources_1/ip)
 
 # Perform handling for each IP module
 set(IP_XCI_SRC "")
 foreach(IP_MODULE IN LISTS IP_MODULES)
     # Add custom command for generating IP module
-    set(XCI_PATH ${IP_GEN_DIR}/${IP_MODULE}/${IP_MODULE}.xci)
+    set(XCI_PATH ${IP_SRCS_DIR}/${IP_MODULE}/${IP_MODULE}.xci)
     add_custom_command(
         OUTPUT ${XCI_PATH}
+        COMMAND
+		    rm -rf "${IP_SRCS_DIR}/${IP_MODULE}"
+        COMMAND
+		    rm -rf "${IP_GEN_DIR}/${IP_MODULE}"
         COMMAND
             ${VIVADO_CMD}
                 -source ${TCL_DIR}/generate_ip.tcl
                 -tclargs
                 --part ${PART}
-                --output-dir ${IP_GEN_DIR}
                 --ip ${IP_MODULE}
         WORKING_DIRECTORY ${VIVADO_WORKING_DIR}
         DEPENDS ${TCL_DIR}/generate_ip.tcl
