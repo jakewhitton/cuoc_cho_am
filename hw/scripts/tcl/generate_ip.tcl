@@ -78,7 +78,6 @@ proc generate_ip {ip} {
     create_project -in_memory -part $part
     set_property -dict [dict create \
         TARGET_LANGUAGE VHDL        \
-        DEFAULT_LIB     ip          \
     ] [current_project]
     
     # Create .xci file

@@ -39,14 +39,13 @@ set constraints [dict get $args "constraints"]
 set bitstream_location [dict get $args "output"]
 
 # Set part for in-memory project
-puts -nonewline "Setting part to \"$part\"..."
 if {[lsearch -exact [get_parts] $part] == -1} {
-    puts "error"
     exit_with_code "part \"$part\" is not known by vivado"
 }
-set_part -quiet $part
-puts "done!"
-puts ""
+create_project -in_memory -part $part
+set_property -dict [dict create \
+	TARGET_LANGUAGE VHDL        \
+] [current_project]
 
 # Parse flat sources list into heirarchical list of libraries
 set libraries [dict create]

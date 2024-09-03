@@ -7,9 +7,6 @@ library sw_transport;
 library external_transport;
     use external_transport.spdif.all;
 
-library ip;
-    use ip.all;
-
 entity top is
     port (
         i_clk   : in  std_logic;
@@ -27,6 +24,21 @@ architecture structure of top is
     --signal sclk    : std_logic                     := '0';
 
     signal spdif_tx_clk      : std_logic  := '0';
+    signal pll_reset         : std_logic  := '0';
+    signal pll_locked        : std_logic  := '0';
+
+    component pll
+    port
+    (-- Clock in ports
+    -- Clock out ports
+    o_spdif_tx_clk          : out    std_logic;
+    -- Status and control signals
+    reset             : in     std_logic;
+    locked            : out    std_logic;
+    i_clk           : in     std_logic
+    );
+    end component;
+
     signal spdif_tx_subframe : Subframe_t := Subframe_t_EXAMPLE;
     signal spdif_tx_enable   : std_logic  := '1';
 
@@ -42,11 +54,11 @@ begin
     --        o_sclk    => sclk
     --    );
 
-    generate_spdif_tx_clk : ip.pll
+    generate_spdif_tx_clk : pll
         port map (
             o_spdif_tx_clk => spdif_tx_clk,
-            reset          => '0',
-            locked         => open,
+            reset          => pll_reset,
+            locked         => pll_locked,
             i_clk          => i_clk
         );
 
