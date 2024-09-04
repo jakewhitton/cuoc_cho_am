@@ -37,7 +37,7 @@ package spdif is
     --      locations rather than only having one at the end for a "0" and having
     --      two for a "1".
     --
-    subtype Spdif_Preamble_t is std_logic_vector(7 downto 0);
+    subtype Spdif_Preamble_t is std_logic_vector(0 to 7);
     constant B_PREAMBLE             : Spdif_Preamble_t := "11101000";
     constant B_PREAMBLE_TRANSITIONS : Spdif_Preamble_t := "10011100";
     constant M_PREAMBLE             : Spdif_Preamble_t := "11100010";
@@ -62,23 +62,30 @@ package spdif is
 
     -- Subframe struct
     type Subframe_t is record
-        aux     : std_logic_vector(3 downto 0);
-        data    : std_logic_vector(19 downto 0);
+        aux     : std_logic_vector(0 to 3);
+        data    : std_logic_vector(0 to 19);
         valid   : std_logic;
         user    : std_logic;
         channel : std_logic;
     end record Subframe_t;
     constant Subframe_t_INIT : Subframe_t := (
-        aux     => "0000",
+        aux     => "1000",
         data    => "00000000000000000000",
         valid   => '0',
         user    => '0',
         channel => '0'
     );
-    constant Subframe_t_EXAMPLE : Subframe_t := (
+    constant Subframe_t_SQUARE_WAVE_LOW : Subframe_t := (
         aux     => "0000",
-        data    => "00000000000000101010", -- 42 in binary
-        valid   => '1',
+        data    => "00000000000000000111",
+        valid   => '0',
+        user    => '0',
+        channel => '0'
+    );
+    constant Subframe_t_SQUARE_WAVE_HIGH : Subframe_t := (
+        aux     => "1111",
+        data    => "11111111111111111000",
+        valid   => '0',
         user    => '0',
         channel => '0'
     );
@@ -155,10 +162,13 @@ package spdif is
     -- Transmit S/PDIF data
     component spdif_tx is
         port (
-            i_clk      : in  std_logic;
-            i_subframe : in  Subframe_t;
-            i_enable   : in  std_logic;
-            o_spdif    : out std_logic
+            i_clk             : in  std_logic;
+            i_subframe        : in  Subframe_t;
+            i_channel_left    : in  std_logic_vector(0 to 191);
+            i_channel_right   : in  std_logic_vector(0 to 191);
+            i_enable          : in  std_logic;
+            o_finish_subframe : out std_logic;
+            o_spdif           : out std_logic
         );
     end component;
 

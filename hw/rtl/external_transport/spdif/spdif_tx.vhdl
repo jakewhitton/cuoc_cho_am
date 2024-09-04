@@ -7,10 +7,13 @@ library work;
 
 entity spdif_tx is
     port (
-        i_clk      : in  std_logic;
-        i_subframe : in  Subframe_t;
-        i_enable   : in  std_logic;
-        o_spdif    : out std_logic
+        i_clk             : in  std_logic;
+        i_subframe        : in  Subframe_t;
+        i_channel_left    : in  std_logic_vector(0 to 191);
+        i_channel_right   : in  std_logic_vector(0 to 191);
+        i_enable          : in  std_logic;
+        o_finish_subframe : out std_logic;
+        o_spdif           : out std_logic
     );
 end spdif_tx;
 
@@ -20,11 +23,11 @@ architecture behavioral of spdif_tx is
     signal preamble_transitions : Spdif_Preamble_t := (others => '0');
 
     -- Timing state
-    signal sclk       : std_logic := '0';
-    signal frame      : natural   := 0;
-    signal subframe   : std_logic := '0';
-    signal bit_pos    : natural   := 0;
-    signal timeslot   : std_logic := '0';
+    signal sclk     : std_logic := '0';
+    signal frame    : natural   := 0;
+    signal subframe : std_logic := '0';
+    signal bit_pos  : natural   := 0;
+    signal timeslot : std_logic := '0';
 
     -- Transmit state
     type State_t is (
@@ -52,23 +55,7 @@ begin
                             "00000000";
 
     -- Timing handling
-    --
-    --   1. Drive sclk, which controls transmit_sm_proc
-    --
-    --```
-    --generate_sclk_proc : process(i_clk)
-    --    -- Split SCLK_PERIOD_CYCLES into two separate lengths for low and high
-    --    constant SCLK_LOW_CYCLES  : natural := SCLK_PERIOD_CYCLES / 2;
-    --    constant SCLK_HIGH_CYCLES : natural := SCLK_LOW_CYCLES + (SCLK_PERIOD_CYCLES rem 2);
-    --begin
-    --    -- TODO derive sclk from i_clk
-    --end process;
-    --```
     sclk <= i_clk; -- Works currently because i_clk period is manually set to ~81.38ns
-    --
-    --   2. Maintains timing state related to which frame, subframe, and time
-    --      slot we are currently in during transmission
-    --
     maintain_timing_state_proc : process(sclk)
     begin
         if rising_edge(sclk) then
@@ -99,6 +86,7 @@ begin
             timeslot <= not timeslot;
         end if;
     end process;
+    o_finish_subframe <= subframe;
 
     -- Note: states in the state machine have the responsibility of
     -- negating the line in the moment of the outgoing transition
@@ -186,18 +174,24 @@ begin
                                     end if;
                                     
                                 when STATUS_BIT_USER =>
-                                    if i_subframe.valid = '1' then
+                                    if i_subframe.user = '1' then
                                         spdif <= not spdif;
                                         parity_bit <= not parity_bit;
                                     end if;
                                     -- Always assume user bit is a '0'
 
                                 when STATUS_BIT_CHANNEL =>
-                                    if i_subframe.valid = '1' then
-                                        spdif <= not spdif;
-                                        parity_bit <= not parity_bit;
+                                    if subframe = '1' then
+                                        if i_channel_left(frame) = '1' then
+                                            spdif <= not spdif;
+                                            parity_bit <= not parity_bit;
+                                        end if;
+                                    else
+                                        if i_channel_right(frame) = '1' then
+                                            spdif <= not spdif;
+                                            parity_bit <= not parity_bit;
+                                        end if;
                                     end if;
-                                    -- Always assume channel bit is a '0'
 
                                 when STATUS_BIT_PARITY =>
                                     if parity_bit = '1' then
