@@ -5,6 +5,7 @@ cco-objs += driver.o
 cco-objs += timer.o
 cco-objs += pcm.o
 cco-objs += device.o
+cco-objs += mixer.o
 
 .PHONY: all clean
 

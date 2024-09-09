@@ -32,5 +32,4 @@ extern bool  fake_buffer;
 
 extern struct platform_device *devices[SNDRV_CARDS];
 
-
 #endif
