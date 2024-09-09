@@ -1,9 +1,11 @@
 #ifndef CCO_DEVICE_H
 #define CCO_DEVICE_H
 
+#include <linux/platform_device.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 
+#include "pcm.h"
 #include "mixer.h"
 
 #define USE_MIXER_VOLUME_LEVEL_MIN -50
@@ -31,5 +33,8 @@ extern int   mixer_volume_level_max;
 extern bool  fake_buffer;
 
 extern struct platform_device *devices[SNDRV_CARDS];
+
+int snd_dummy_register_all(void);
+void snd_dummy_unregister_all(void);
 
 #endif

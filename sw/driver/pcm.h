@@ -6,6 +6,9 @@
 
 #include "device.h"
 
+#define MAX_PCM_DEVICES    4
+#define MAX_PCM_SUBSTREAMS 128
+
 #define MAX_BUFFER_SIZE  (64*1024)
 #define MIN_PERIOD_SIZE  64
 #define MAX_PERIOD_SIZE  MAX_BUFFER_SIZE
@@ -38,6 +41,8 @@ static const struct snd_pcm_hardware dummy_pcm_hardware = {
 
 void free_fake_buffer(void);
 int alloc_fake_buffer(void);
+
+struct snd_dummy;
 int snd_card_dummy_pcm(struct snd_dummy *dummy, int device, int substreams);
 
 #endif
