@@ -75,7 +75,7 @@ static int cco_systimer_stop(struct snd_pcm_substream *substream)
 }
 
 static snd_pcm_uframes_t cco_systimer_pointer(
-	struct snd_pcm_substream *substream)
+    struct snd_pcm_substream *substream)
 {
     struct cco_systimer_pcm *dpcm = substream->runtime->private_data;
     snd_pcm_uframes_t pos;

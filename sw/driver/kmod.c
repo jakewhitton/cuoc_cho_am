@@ -26,7 +26,7 @@ MODULE_PARM_DESC(fake_buffer, "Fake buffer allocations.");
 
 static int __init kmod_init(void)
 {
-	return cco_register_all();
+    return cco_register_all();
 }
 
 static void __exit kmod_exit(void)
