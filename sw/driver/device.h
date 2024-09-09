@@ -8,9 +8,6 @@
 #include "pcm.h"
 #include "mixer.h"
 
-#define USE_MIXER_VOLUME_LEVEL_MIN -50
-#define USE_MIXER_VOLUME_LEVEL_MAX 100
-
 struct snd_dummy {
     struct snd_card *card;
     struct snd_pcm *pcm;

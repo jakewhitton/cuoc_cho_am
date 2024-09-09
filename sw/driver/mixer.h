@@ -1,6 +1,9 @@
 #ifndef CCO_MIXER_H
 #define CCO_MIXER_H
 
+#define USE_MIXER_VOLUME_LEVEL_MIN -50
+#define USE_MIXER_VOLUME_LEVEL_MAX 100
+
 #define MIXER_ADDR_MASTER 0
 #define MIXER_ADDR_LINE   1
 #define MIXER_ADDR_MIC    2

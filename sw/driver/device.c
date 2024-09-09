@@ -2,6 +2,8 @@
 
 #include <sound/initval.h>
 
+#define SND_DUMMY_DRIVER    "snd_dummy"
+
 int   idx           [SNDRV_CARDS] = SNDRV_DEFAULT_IDX;    /* Index 0-MAX */
 char *id            [SNDRV_CARDS] = SNDRV_DEFAULT_STR;    /* ID for this card */
 bool  enable        [SNDRV_CARDS] = {1, [1 ... (SNDRV_CARDS - 1)] = 0};
@@ -76,8 +78,6 @@ static int snd_dummy_resume(struct device *pdev)
 }
 
 static DEFINE_SIMPLE_DEV_PM_OPS(snd_dummy_pm, snd_dummy_suspend, snd_dummy_resume);
-
-#define SND_DUMMY_DRIVER    "snd_dummy"
 
 static struct platform_driver snd_dummy_driver = {
     .probe  = snd_dummy_probe,

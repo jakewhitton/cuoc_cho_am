@@ -1,23 +1,7 @@
 #include <linux/init.h>
-#include <linux/err.h>
-#include <linux/jiffies.h>
-#include <linux/slab.h>
-#include <linux/time.h>
-#include <linux/wait.h>
-#include <linux/hrtimer.h>
-#include <linux/math64.h>
 #include <linux/module.h>
-#include <sound/core.h>
-#include <sound/control.h>
-#include <sound/tlv.h>
-#include <sound/pcm.h>
-#include <sound/info.h>
-#include <sound/initval.h>
 
-#include "pcm.h"
-#include "timer.h"
 #include "device.h"
-#include "mixer.h"
 
 MODULE_AUTHOR("Jaroslav Kysela <perex@perex.cz>");
 MODULE_DESCRIPTION("Dummy soundcard (/dev/null)");
