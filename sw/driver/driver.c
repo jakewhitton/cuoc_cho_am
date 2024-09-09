@@ -27,8 +27,6 @@ MODULE_LICENSE("GPL");
 #define MAX_PCM_DEVICES    4
 #define MAX_PCM_SUBSTREAMS 128
 
-/* defaults */
-
 module_param_array(index, int, NULL, 0444);
 MODULE_PARM_DESC(index, "Index value for dummy soundcard.");
 module_param_array(id, charp, NULL, 0444);
@@ -45,138 +43,6 @@ module_param(mixer_volume_level_max, int, 0444);
 MODULE_PARM_DESC(mixer_volume_level_max, "Maximum mixer volume level for dummy driver. Default: 100");
 module_param(fake_buffer, bool, 0444);
 MODULE_PARM_DESC(fake_buffer, "Fake buffer allocations.");
-
-
-/*
- * mixer interface
- */
-
-
-#if defined(CONFIG_SND_DEBUG) && defined(CONFIG_SND_PROC_FS)
-/*
- * proc interface
- */
-static void print_formats(struct snd_dummy *dummy,
-              struct snd_info_buffer *buffer)
-{
-    snd_pcm_format_t i;
-
-    pcm_for_each_format(i) {
-        if (dummy->pcm_hw.formats & pcm_format_to_bits(i))
-            snd_iprintf(buffer, " %s", snd_pcm_format_name(i));
-    }
-}
-
-static void print_rates(struct snd_dummy *dummy,
-            struct snd_info_buffer *buffer)
-{
-    static const int rates[] = {
-        5512, 8000, 11025, 16000, 22050, 32000, 44100, 48000,
-        64000, 88200, 96000, 176400, 192000,
-    };
-    int i;
-
-    if (dummy->pcm_hw.rates & SNDRV_PCM_RATE_CONTINUOUS)
-        snd_iprintf(buffer, " continuous");
-    if (dummy->pcm_hw.rates & SNDRV_PCM_RATE_KNOT)
-        snd_iprintf(buffer, " knot");
-    for (i = 0; i < ARRAY_SIZE(rates); i++)
-        if (dummy->pcm_hw.rates & (1 << i))
-            snd_iprintf(buffer, " %d", rates[i]);
-}
-
-#define get_dummy_int_ptr(dummy, ofs) \
-    (unsigned int *)((char *)&((dummy)->pcm_hw) + (ofs))
-#define get_dummy_ll_ptr(dummy, ofs) \
-    (unsigned long long *)((char *)&((dummy)->pcm_hw) + (ofs))
-
-struct dummy_hw_field {
-    const char *name;
-    const char *format;
-    unsigned int offset;
-    unsigned int size;
-};
-#define FIELD_ENTRY(item, fmt)                         \
-{                                                      \
-    .name   = #item,                                   \
-    .format = fmt,                                     \
-    .offset = offsetof(struct snd_pcm_hardware, item), \
-    .size   = sizeof(dummy_pcm_hardware.item)          \
-}
-
-static const struct dummy_hw_field fields[] = {
-    FIELD_ENTRY(formats, "%#llx"),
-    FIELD_ENTRY(rates, "%#x"),
-    FIELD_ENTRY(rate_min, "%d"),
-    FIELD_ENTRY(rate_max, "%d"),
-    FIELD_ENTRY(channels_min, "%d"),
-    FIELD_ENTRY(channels_max, "%d"),
-    FIELD_ENTRY(buffer_bytes_max, "%ld"),
-    FIELD_ENTRY(period_bytes_min, "%ld"),
-    FIELD_ENTRY(period_bytes_max, "%ld"),
-    FIELD_ENTRY(periods_min, "%d"),
-    FIELD_ENTRY(periods_max, "%d"),
-};
-
-static void dummy_proc_read(struct snd_info_entry *entry,
-                struct snd_info_buffer *buffer)
-{
-    struct snd_dummy *dummy = entry->private_data;
-    int i;
-
-    for (i = 0; i < ARRAY_SIZE(fields); i++) {
-        snd_iprintf(buffer, "%s ", fields[i].name);
-        if (fields[i].size == sizeof(int))
-            snd_iprintf(buffer, fields[i].format,
-                *get_dummy_int_ptr(dummy, fields[i].offset));
-        else
-            snd_iprintf(buffer, fields[i].format,
-                *get_dummy_ll_ptr(dummy, fields[i].offset));
-        if (!strcmp(fields[i].name, "formats"))
-            print_formats(dummy, buffer);
-        else if (!strcmp(fields[i].name, "rates"))
-            print_rates(dummy, buffer);
-        snd_iprintf(buffer, "\n");
-    }
-}
-
-static void dummy_proc_write(struct snd_info_entry *entry,
-                 struct snd_info_buffer *buffer)
-{
-    struct snd_dummy *dummy = entry->private_data;
-    char line[64];
-
-    while (!snd_info_get_line(buffer, line, sizeof(line))) {
-        char item[20];
-        const char *ptr;
-        unsigned long long val;
-        int i;
-
-        ptr = snd_info_get_str(item, line, sizeof(item));
-        for (i = 0; i < ARRAY_SIZE(fields); i++) {
-            if (!strcmp(item, fields[i].name))
-                break;
-        }
-        if (i >= ARRAY_SIZE(fields))
-            continue;
-        snd_info_get_str(item, ptr, sizeof(item));
-        if (kstrtoull(item, 0, &val))
-            continue;
-        if (fields[i].size == sizeof(int))
-            *get_dummy_int_ptr(dummy, fields[i].offset) = val;
-        else
-            *get_dummy_ll_ptr(dummy, fields[i].offset) = val;
-    }
-}
-
-static void dummy_proc_init(struct snd_dummy *chip)
-{
-    snd_card_rw_proc_new(chip->card, "dummy_pcm", chip,
-                 dummy_proc_read, dummy_proc_write);
-}
-#else
-#define dummy_proc_init(x)
-#endif /* CONFIG_SND_DEBUG && CONFIG_SND_PROC_FS */
 
 static int snd_dummy_probe(struct platform_device *devptr)
 {
@@ -216,8 +82,6 @@ static int snd_dummy_probe(struct platform_device *devptr)
     strcpy(card->driver, "Dummy");
     strcpy(card->shortname, "Dummy");
     sprintf(card->longname, "Dummy %i", dev + 1);
-
-    dummy_proc_init(dummy);
 
     err = snd_card_register(card);
     if (err < 0)
