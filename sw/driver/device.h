@@ -8,7 +8,7 @@
 #include "pcm.h"
 #include "mixer.h"
 
-struct snd_dummy {
+struct cco_device {
     struct snd_card *card;
     struct snd_pcm *pcm;
     struct snd_pcm_hardware pcm_hw;
@@ -31,7 +31,7 @@ extern bool  fake_buffer;
 
 extern struct platform_device *devices[SNDRV_CARDS];
 
-int snd_dummy_register_all(void);
-void snd_dummy_unregister_all(void);
+int cco_register_all(void);
+void cco_unregister_all(void);
 
 #endif

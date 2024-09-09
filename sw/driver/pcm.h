@@ -20,7 +20,7 @@
 #define USE_CHANNELS_MAX 2
 #define USE_PERIODS_MIN  1
 #define USE_PERIODS_MAX  1024
-static const struct snd_pcm_hardware dummy_pcm_hardware = {
+static const struct snd_pcm_hardware cco_pcm_hardware = {
     .info             = ( SNDRV_PCM_INFO_MMAP
                         | SNDRV_PCM_INFO_INTERLEAVED
                         | SNDRV_PCM_INFO_RESUME
@@ -42,7 +42,7 @@ static const struct snd_pcm_hardware dummy_pcm_hardware = {
 void free_fake_buffer(void);
 int alloc_fake_buffer(void);
 
-struct snd_dummy;
-int snd_card_dummy_pcm(struct snd_dummy *dummy, int device, int substreams);
+struct cco_device;
+int cco_pcm_init(struct cco_device *cco, int device, int substreams);
 
 #endif

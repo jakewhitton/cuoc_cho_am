@@ -11,7 +11,7 @@
 #define MIXER_ADDR_CD     4
 #define MIXER_ADDR_LAST   4
 
-struct snd_dummy;
-int snd_card_dummy_new_mixer(struct snd_dummy *dummy);
+struct cco_device;
+int cco_mixer_init(struct cco_device *cco);
 
 #endif

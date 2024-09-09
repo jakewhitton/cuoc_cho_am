@@ -1,24 +1,24 @@
 #include "pcm.h"
 #include "timer.h"
 
-static void *dummy_page[2];
+static void *page[2];
 
 /*================================PCM interface===============================*/
-static int dummy_pcm_open(struct snd_pcm_substream *substream)
+static int cco_pcm_open(struct snd_pcm_substream *substream)
 {
-    struct snd_dummy *dummy = snd_pcm_substream_chip(substream);
+    struct cco_device *cco = snd_pcm_substream_chip(substream);
     struct snd_pcm_runtime *runtime = substream->runtime;
-    const struct dummy_timer_ops *ops;
+    const struct cco_timer_ops *ops;
     int err;
 
-    ops = &dummy_systimer_ops;
+    ops = &cco_systimer_ops;
 
     err = ops->create(substream);
     if (err < 0)
         return err;
-    get_dummy_ops(substream) = ops;
+    get_cco_ops(substream) = ops;
 
-    runtime->hw = dummy->pcm_hw;
+    runtime->hw = cco->pcm_hw;
     if (substream->pcm->device & 1) {
         runtime->hw.info &= ~SNDRV_PCM_INFO_INTERLEAVED;
         runtime->hw.info |= SNDRV_PCM_INFO_NONINTERLEAVED;
@@ -30,13 +30,13 @@ static int dummy_pcm_open(struct snd_pcm_substream *substream)
     return 0;
 }
 
-static int dummy_pcm_close(struct snd_pcm_substream *substream)
+static int cco_pcm_close(struct snd_pcm_substream *substream)
 {
-    get_dummy_ops(substream)->free(substream);
+    get_cco_ops(substream)->free(substream);
     return 0;
 }
 
-static int dummy_pcm_hw_params(struct snd_pcm_substream *substream,
+static int cco_pcm_hw_params(struct snd_pcm_substream *substream,
                    struct snd_pcm_hw_params *hw_params)
 {
     if (fake_buffer) {
@@ -47,69 +47,69 @@ static int dummy_pcm_hw_params(struct snd_pcm_substream *substream,
     return 0;
 }
 
-static int dummy_pcm_prepare(struct snd_pcm_substream *substream)
+static int cco_pcm_prepare(struct snd_pcm_substream *substream)
 {
-    return get_dummy_ops(substream)->prepare(substream);
+    return get_cco_ops(substream)->prepare(substream);
 }
 
-static int dummy_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
+static int cco_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 {
     switch (cmd) {
     case SNDRV_PCM_TRIGGER_START:
     case SNDRV_PCM_TRIGGER_RESUME:
-        return get_dummy_ops(substream)->start(substream);
+        return get_cco_ops(substream)->start(substream);
     case SNDRV_PCM_TRIGGER_STOP:
     case SNDRV_PCM_TRIGGER_SUSPEND:
-        return get_dummy_ops(substream)->stop(substream);
+        return get_cco_ops(substream)->stop(substream);
     }
     return -EINVAL;
 }
 
-static snd_pcm_uframes_t dummy_pcm_pointer(struct snd_pcm_substream *substream)
+static snd_pcm_uframes_t cco_pcm_pointer(struct snd_pcm_substream *substream)
 {
-    return get_dummy_ops(substream)->pointer(substream);
+    return get_cco_ops(substream)->pointer(substream);
 }
 
-static int dummy_pcm_copy(struct snd_pcm_substream *substream,
-              int channel, unsigned long pos,
-              struct iov_iter *iter, unsigned long bytes)
+static int cco_pcm_copy(struct snd_pcm_substream *substream,
+                        int channel, unsigned long pos,
+                        struct iov_iter *iter, unsigned long bytes)
 {
     return 0; /* do nothing */
 }
 
-static int dummy_pcm_silence(struct snd_pcm_substream *substream,
+static int cco_pcm_silence(struct snd_pcm_substream *substream,
                  int channel, unsigned long pos,
                  unsigned long bytes)
 {
     return 0; /* do nothing */
 }
 
-static struct page *dummy_pcm_page(struct snd_pcm_substream *substream,
+static struct page *cco_pcm_page(struct snd_pcm_substream *substream,
                    unsigned long offset)
 {
-    return virt_to_page(dummy_page[substream->stream]); /* the same page */
+    return virt_to_page(page[substream->stream]); /* the same page */
 }
 
-static const struct snd_pcm_ops dummy_pcm_ops = {
-    .open      = dummy_pcm_open,
-    .close     = dummy_pcm_close,
-    .hw_params = dummy_pcm_hw_params,
-    .prepare   = dummy_pcm_prepare,
-    .trigger   = dummy_pcm_trigger,
-    .pointer   = dummy_pcm_pointer,
+static const struct snd_pcm_ops cco_pcm_ops = {
+    .open      = cco_pcm_open,
+    .close     = cco_pcm_close,
+    .hw_params = cco_pcm_hw_params,
+    .prepare   = cco_pcm_prepare,
+    .trigger   = cco_pcm_trigger,
+    .pointer   = cco_pcm_pointer,
 };
 
-static const struct snd_pcm_ops dummy_pcm_ops_no_buf = {
-    .open         = dummy_pcm_open,
-    .close        = dummy_pcm_close,
-    .hw_params    = dummy_pcm_hw_params,
-    .prepare      = dummy_pcm_prepare,
-    .trigger      = dummy_pcm_trigger,
-    .pointer      = dummy_pcm_pointer,
-    // Unique to dummy_pcm_ops_no_buf
-    .copy         = dummy_pcm_copy,
-    .fill_silence = dummy_pcm_silence,
-    .page         = dummy_pcm_page,
+static const struct snd_pcm_ops cco_pcm_ops_no_buf = {
+    .open         = cco_pcm_open,
+    .close        = cco_pcm_close,
+    .hw_params    = cco_pcm_hw_params,
+    .prepare      = cco_pcm_prepare,
+    .trigger      = cco_pcm_trigger,
+    .pointer      = cco_pcm_pointer,
+    // Unique to cco_pcm_ops_no_buf
+    .copy         = cco_pcm_copy,
+    .fill_silence = cco_pcm_silence,
+    .page         = cco_pcm_page,
 };
 /*============================================================================*/
 
@@ -120,9 +120,9 @@ void free_fake_buffer(void)
     if (fake_buffer) {
         int i;
         for (i = 0; i < 2; i++)
-            if (dummy_page[i]) {
-                free_page((unsigned long)dummy_page[i]);
-                dummy_page[i] = NULL;
+            if (page[i]) {
+                free_page((unsigned long)page[i]);
+                page[i] = NULL;
             }
     }
 }
@@ -134,8 +134,8 @@ int alloc_fake_buffer(void)
     if (!fake_buffer)
         return 0;
     for (i = 0; i < 2; i++) {
-        dummy_page[i] = (void *)get_zeroed_page(GFP_KERNEL);
-        if (!dummy_page[i]) {
+        page[i] = (void *)get_zeroed_page(GFP_KERNEL);
+        if (!page[i]) {
             free_fake_buffer();
             return -ENOMEM;
         }
@@ -143,28 +143,28 @@ int alloc_fake_buffer(void)
     return 0;
 }
 
-int snd_card_dummy_pcm(struct snd_dummy *dummy, int device, int substreams)
+int cco_pcm_init(struct cco_device *cco, int device, int substreams)
 {
     struct snd_pcm *pcm;
     const struct snd_pcm_ops *ops;
     int err;
 
-    err = snd_pcm_new(dummy->card, "Dummy PCM", device,
+    err = snd_pcm_new(cco->card, "CCO PCM", device,
                       substreams /* playback_count */,
                       substreams /* capture_count */,
                       &pcm);
     if (err < 0)
         return err;
-    dummy->pcm = pcm;
+    cco->pcm = pcm;
     if (fake_buffer)
-        ops = &dummy_pcm_ops_no_buf;
+        ops = &cco_pcm_ops_no_buf;
     else
-        ops = &dummy_pcm_ops;
+        ops = &cco_pcm_ops;
     snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, ops);
     snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, ops);
-    pcm->private_data = dummy;
+    pcm->private_data = cco;
     pcm->info_flags = 0;
-    strcpy(pcm->name, "Dummy PCM");
+    strcpy(pcm->name, "CCO PCM");
     if (!fake_buffer) {
         snd_pcm_set_managed_buffer_all(pcm,
             SNDRV_DMA_TYPE_CONTINUOUS,
