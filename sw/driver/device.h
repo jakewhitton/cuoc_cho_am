@@ -23,7 +23,7 @@ struct snd_dummy {
     struct snd_kcontrol *cd_switch_ctl;
 };
 
-extern int   index         [SNDRV_CARDS];    /* Index 0-MAX */
+extern int   idx           [SNDRV_CARDS];    /* Index 0-MAX */
 extern char *id            [SNDRV_CARDS];    /* ID for this card */
 extern bool  enable        [SNDRV_CARDS];
 extern int   pcm_devs      [SNDRV_CARDS];

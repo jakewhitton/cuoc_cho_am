@@ -2,7 +2,7 @@
 
 #include <sound/initval.h>
 
-int   index         [SNDRV_CARDS] = SNDRV_DEFAULT_IDX;    /* Index 0-MAX */
+int   idx           [SNDRV_CARDS] = SNDRV_DEFAULT_IDX;    /* Index 0-MAX */
 char *id            [SNDRV_CARDS] = SNDRV_DEFAULT_STR;    /* ID for this card */
 bool  enable        [SNDRV_CARDS] = {1, [1 ... (SNDRV_CARDS - 1)] = 0};
 int   pcm_devs      [SNDRV_CARDS] = {[0 ... (SNDRV_CARDS - 1)] = 1};
@@ -17,22 +17,22 @@ static int snd_dummy_probe(struct platform_device *devptr)
 {
     struct snd_card *card;
     struct snd_dummy *dummy;
-    int idx, err;
+    int i, err;
     int dev = devptr->id;
 
-    err = snd_devm_card_new(&devptr->dev, index[dev], id[dev], THIS_MODULE,
+    err = snd_devm_card_new(&devptr->dev, idx[dev], id[dev], THIS_MODULE,
                 sizeof(struct snd_dummy), &card);
     if (err < 0)
         return err;
     dummy = card->private_data;
     dummy->card = card;
 
-    for (idx = 0; idx < MAX_PCM_DEVICES && idx < pcm_devs[dev]; idx++) {
+    for (i = 0; i < MAX_PCM_DEVICES && i < pcm_devs[dev]; i++) {
         if (pcm_substreams[dev] < 1)
             pcm_substreams[dev] = 1;
         if (pcm_substreams[dev] > MAX_PCM_SUBSTREAMS)
             pcm_substreams[dev] = MAX_PCM_SUBSTREAMS;
-        err = snd_card_dummy_pcm(dummy, idx, pcm_substreams[dev]);
+        err = snd_card_dummy_pcm(dummy, i, pcm_substreams[dev]);
         if (err < 0)
             return err;
     }

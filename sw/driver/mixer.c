@@ -178,15 +178,15 @@ int snd_card_dummy_new_mixer(struct snd_dummy *dummy)
 {
     struct snd_card *card = dummy->card;
     struct snd_kcontrol *kcontrol;
-    unsigned int idx;
+    unsigned int i;
     int err;
 
     spin_lock_init(&dummy->mixer_lock);
     strcpy(card->mixername, "Dummy Mixer");
     dummy->iobox = 1;
 
-    for (idx = 0; idx < ARRAY_SIZE(snd_dummy_controls); idx++) {
-        kcontrol = snd_ctl_new1(&snd_dummy_controls[idx], dummy);
+    for (i = 0; i < ARRAY_SIZE(snd_dummy_controls); i++) {
+        kcontrol = snd_ctl_new1(&snd_dummy_controls[i], dummy);
         err = snd_ctl_add(card, kcontrol);
         if (err < 0)
             return err;

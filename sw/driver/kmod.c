@@ -23,8 +23,8 @@ MODULE_AUTHOR("Jaroslav Kysela <perex@perex.cz>");
 MODULE_DESCRIPTION("Dummy soundcard (/dev/null)");
 MODULE_LICENSE("GPL");
 
-module_param_array(index, int, NULL, 0444);
-MODULE_PARM_DESC(index, "Index value for dummy soundcard.");
+module_param_array(idx, int, NULL, 0444);
+MODULE_PARM_DESC(idx, "Index value for dummy soundcard.");
 module_param_array(id, charp, NULL, 0444);
 MODULE_PARM_DESC(id, "ID string for dummy soundcard.");
 module_param_array(enable, bool, NULL, 0444);
