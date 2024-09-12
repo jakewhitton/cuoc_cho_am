@@ -5,7 +5,6 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 
-#include "pcm.h"
 #include "mixer.h"
 
 struct cco_device {
@@ -20,8 +19,8 @@ struct cco_device {
     struct snd_kcontrol *cd_switch_ctl;
 };
 
-extern int   idx           [SNDRV_CARDS];    /* Index 0-MAX */
-extern char *id            [SNDRV_CARDS];    /* ID for this card */
+extern int   idx           [SNDRV_CARDS]; /* Index 0-MAX */
+extern char *id            [SNDRV_CARDS]; /* ID for this card */
 extern bool  enable        [SNDRV_CARDS];
 extern int   pcm_devs      [SNDRV_CARDS];
 extern int   pcm_substreams[SNDRV_CARDS];

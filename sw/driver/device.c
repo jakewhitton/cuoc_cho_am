@@ -2,10 +2,12 @@
 
 #include <sound/initval.h>
 
+#include "pcm.h"
+
 #define CCO_DRIVER    "cco"
 
-int   idx           [SNDRV_CARDS] = SNDRV_DEFAULT_IDX;    /* Index 0-MAX */
-char *id            [SNDRV_CARDS] = SNDRV_DEFAULT_STR;    /* ID for this card */
+int   idx           [SNDRV_CARDS] = SNDRV_DEFAULT_IDX; /* Index 0-MAX */
+char *id            [SNDRV_CARDS] = SNDRV_DEFAULT_STR; /* ID for this card */
 bool  enable        [SNDRV_CARDS] = {1, [1 ... (SNDRV_CARDS - 1)] = 0};
 int   pcm_devs      [SNDRV_CARDS] = {[0 ... (SNDRV_CARDS - 1)] = 1};
 int   pcm_substreams[SNDRV_CARDS] = {[0 ... (SNDRV_CARDS - 1)] = 8};
@@ -15,6 +17,7 @@ bool  fake_buffer                 = 1;
 
 struct platform_device *devices[SNDRV_CARDS];
 
+/*==============================Driver interface==============================*/
 static int cco_probe(struct platform_device *devptr)
 {
     struct snd_card *card;
@@ -22,8 +25,13 @@ static int cco_probe(struct platform_device *devptr)
     int i, err;
     int dev = devptr->id;
 
-    err = snd_devm_card_new(&devptr->dev, idx[dev], id[dev], THIS_MODULE,
-                sizeof(struct cco_device), &card);
+    err = snd_devm_card_new(
+		&devptr->dev,              /* parent device */
+		idx[dev],                  /* card index */
+		id[dev],                   /* card name */
+		THIS_MODULE,               /* module */
+        sizeof(struct cco_device), /* private_data size */
+		&card);                    /* snd_card instance */
     if (err < 0)
         return err;
     cco = card->private_data;
@@ -34,6 +42,7 @@ static int cco_probe(struct platform_device *devptr)
             pcm_substreams[dev] = 1;
         if (pcm_substreams[dev] > MAX_PCM_SUBSTREAMS)
             pcm_substreams[dev] = MAX_PCM_SUBSTREAMS;
+
         err = cco_pcm_init(cco, i, pcm_substreams[dev]);
         if (err < 0)
             return err;
@@ -42,14 +51,17 @@ static int cco_probe(struct platform_device *devptr)
     cco->pcm_hw = cco_pcm_hardware;
 
     if (mixer_volume_level_min > mixer_volume_level_max) {
-        pr_warn("cco: Invalid mixer volume level: min=%d, max=%d. Fall back to default value.\n",
-        mixer_volume_level_min, mixer_volume_level_max);
+        pr_warn("cco: Invalid mixer volume level: min=%d, max=%d. "
+                "Fall back to default value.\n",
+                mixer_volume_level_min, mixer_volume_level_max);
         mixer_volume_level_min = USE_MIXER_VOLUME_LEVEL_MIN;
         mixer_volume_level_max = USE_MIXER_VOLUME_LEVEL_MAX;
     }
+
     err = cco_mixer_init(cco);
     if (err < 0)
         return err;
+
     strcpy(card->driver, "cco");
     strcpy(card->shortname, "cuoc_cho_am");
     sprintf(card->longname, "cuoc_cho_am %i", dev + 1);
@@ -57,14 +69,15 @@ static int cco_probe(struct platform_device *devptr)
     err = snd_card_register(card);
     if (err < 0)
         return err;
+
     platform_set_drvdata(devptr, card);
+
     return 0;
 }
 
 static int cco_suspend(struct device *pdev)
 {
     struct snd_card *card = dev_get_drvdata(pdev);
-
     snd_power_change_state(card, SNDRV_CTL_POWER_D3hot);
     return 0;
 }
@@ -72,7 +85,6 @@ static int cco_suspend(struct device *pdev)
 static int cco_resume(struct device *pdev)
 {
     struct snd_card *card = dev_get_drvdata(pdev);
-
     snd_power_change_state(card, SNDRV_CTL_POWER_D0);
     return 0;
 }
@@ -86,7 +98,10 @@ static struct platform_driver cco_driver = {
         .pm   = &cco_pm,
     },
 };
+/*============================================================================*/
 
+
+/*==============================Device management=============================*/
 int cco_register_all(void)
 {
     int i, cards, err;
@@ -104,14 +119,17 @@ int cco_register_all(void)
     cards = 0;
     for (i = 0; i < SNDRV_CARDS; i++) {
         struct platform_device *device;
-        if (! enable[i])
+        if (!enable[i])
             continue;
 
         // Register platform device, which will cause probe()
         // method to be called if name supplied matches that of
         // driver that was previously registered
-        device = platform_device_register_simple(CCO_DRIVER,
-                             i, NULL, 0);
+        device = platform_device_register_simple(
+            CCO_DRIVER, /* driver name */
+            i,          /* id */
+            NULL,       /* resources */
+            0);         /* num resources */
         if (IS_ERR(device))
             continue;
 
@@ -123,13 +141,13 @@ int cco_register_all(void)
         devices[i] = device;
         cards++;
     }
+
     if (!cards) {
-#ifdef MODULE
         printk(KERN_ERR "CCO soundcard not found or device busy\n");
-#endif
         cco_unregister_all();
         return -ENODEV;
     }
+
     return 0;
 }
 
@@ -139,6 +157,9 @@ void cco_unregister_all(void)
 
     for (i = 0; i < ARRAY_SIZE(devices); ++i)
         platform_device_unregister(devices[i]);
+
     platform_driver_unregister(&cco_driver);
+
     free_fake_buffer();
 }
+/*============================================================================*/

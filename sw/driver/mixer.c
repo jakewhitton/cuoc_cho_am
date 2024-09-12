@@ -13,6 +13,7 @@ static int cco_volume_info(struct snd_kcontrol *kcontrol,
     uinfo->count = 2;
     uinfo->value.integer.min = mixer_volume_level_min;
     uinfo->value.integer.max = mixer_volume_level_max;
+
     return 0;
 }
 
@@ -26,6 +27,7 @@ static int cco_volume_get(struct snd_kcontrol *kcontrol,
     ucontrol->value.integer.value[0] = cco->mixer_volume[addr][0];
     ucontrol->value.integer.value[1] = cco->mixer_volume[addr][1];
     spin_unlock_irq(&cco->mixer_lock);
+
     return 0;
 }
 

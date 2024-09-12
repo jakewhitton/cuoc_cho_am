@@ -37,7 +37,7 @@ static int cco_pcm_close(struct snd_pcm_substream *substream)
 }
 
 static int cco_pcm_hw_params(struct snd_pcm_substream *substream,
-                   struct snd_pcm_hw_params *hw_params)
+                             struct snd_pcm_hw_params *hw_params)
 {
     if (fake_buffer) {
         /* runtime->dma_bytes has to be set manually to allow mmap */
@@ -78,14 +78,14 @@ static int cco_pcm_copy(struct snd_pcm_substream *substream,
 }
 
 static int cco_pcm_silence(struct snd_pcm_substream *substream,
-                 int channel, unsigned long pos,
-                 unsigned long bytes)
+                           int channel, unsigned long pos,
+                           unsigned long bytes)
 {
     return 0; /* do nothing */
 }
 
 static struct page *cco_pcm_page(struct snd_pcm_substream *substream,
-                   unsigned long offset)
+                                 unsigned long offset)
 {
     return virt_to_page(page[substream->stream]); /* the same page */
 }
