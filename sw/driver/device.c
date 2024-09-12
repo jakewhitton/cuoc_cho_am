@@ -11,9 +11,6 @@ char *id            [SNDRV_CARDS] = SNDRV_DEFAULT_STR; /* ID for this card */
 bool  enable        [SNDRV_CARDS] = {1, [1 ... (SNDRV_CARDS - 1)] = 0};
 int   pcm_devs      [SNDRV_CARDS] = {[0 ... (SNDRV_CARDS - 1)] = 1};
 int   pcm_substreams[SNDRV_CARDS] = {[0 ... (SNDRV_CARDS - 1)] = 8};
-int   mixer_volume_level_min      = USE_MIXER_VOLUME_LEVEL_MIN;
-int   mixer_volume_level_max      = USE_MIXER_VOLUME_LEVEL_MAX;
-bool  fake_buffer                 = 1;
 
 struct platform_device *devices[SNDRV_CARDS];
 
@@ -49,14 +46,6 @@ static int cco_probe(struct platform_device *devptr)
     }
 
     cco->pcm_hw = cco_pcm_hardware;
-
-    if (mixer_volume_level_min > mixer_volume_level_max) {
-        pr_warn("cco: Invalid mixer volume level: min=%d, max=%d. "
-                "Fall back to default value.\n",
-                mixer_volume_level_min, mixer_volume_level_max);
-        mixer_volume_level_min = USE_MIXER_VOLUME_LEVEL_MIN;
-        mixer_volume_level_max = USE_MIXER_VOLUME_LEVEL_MAX;
-    }
 
     err = cco_mixer_init(cco);
     if (err < 0)

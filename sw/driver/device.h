@@ -24,9 +24,6 @@ extern char *id            [SNDRV_CARDS]; /* ID for this card */
 extern bool  enable        [SNDRV_CARDS];
 extern int   pcm_devs      [SNDRV_CARDS];
 extern int   pcm_substreams[SNDRV_CARDS];
-extern int   mixer_volume_level_min;
-extern int   mixer_volume_level_max;
-extern bool  fake_buffer;
 
 extern struct platform_device *devices[SNDRV_CARDS];
 

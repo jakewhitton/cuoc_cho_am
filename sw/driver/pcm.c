@@ -39,11 +39,8 @@ static int cco_pcm_close(struct snd_pcm_substream *substream)
 static int cco_pcm_hw_params(struct snd_pcm_substream *substream,
                              struct snd_pcm_hw_params *hw_params)
 {
-    if (fake_buffer) {
-        /* runtime->dma_bytes has to be set manually to allow mmap */
-        substream->runtime->dma_bytes = params_buffer_bytes(hw_params);
-        return 0;
-    }
+    /* runtime->dma_bytes has to be set manually to allow mmap */
+    substream->runtime->dma_bytes = params_buffer_bytes(hw_params);
     return 0;
 }
 
@@ -91,22 +88,12 @@ static struct page *cco_pcm_page(struct snd_pcm_substream *substream,
 }
 
 static const struct snd_pcm_ops cco_pcm_ops = {
-    .open      = cco_pcm_open,
-    .close     = cco_pcm_close,
-    .hw_params = cco_pcm_hw_params,
-    .prepare   = cco_pcm_prepare,
-    .trigger   = cco_pcm_trigger,
-    .pointer   = cco_pcm_pointer,
-};
-
-static const struct snd_pcm_ops cco_pcm_ops_no_buf = {
     .open         = cco_pcm_open,
     .close        = cco_pcm_close,
     .hw_params    = cco_pcm_hw_params,
     .prepare      = cco_pcm_prepare,
     .trigger      = cco_pcm_trigger,
     .pointer      = cco_pcm_pointer,
-    // Unique to cco_pcm_ops_no_buf
     .copy         = cco_pcm_copy,
     .fill_silence = cco_pcm_silence,
     .page         = cco_pcm_page,
@@ -117,13 +104,12 @@ static const struct snd_pcm_ops cco_pcm_ops_no_buf = {
 /*===============================Initialization===============================*/
 void free_fake_buffer(void)
 {
-    if (fake_buffer) {
-        int i;
-        for (i = 0; i < 2; i++)
-            if (page[i]) {
-                free_page((unsigned long)page[i]);
-                page[i] = NULL;
-            }
+    int i;
+    for (i = 0; i < 2; i++) {
+        if (page[i]) {
+            free_page((unsigned long)page[i]);
+            page[i] = NULL;
+        }
     }
 }
 
@@ -131,8 +117,6 @@ int alloc_fake_buffer(void)
 {
     int i;
 
-    if (!fake_buffer)
-        return 0;
     for (i = 0; i < 2; i++) {
         page[i] = (void *)get_zeroed_page(GFP_KERNEL);
         if (!page[i]) {
@@ -146,7 +130,6 @@ int alloc_fake_buffer(void)
 int cco_pcm_init(struct cco_device *cco, int device, int substreams)
 {
     struct snd_pcm *pcm;
-    const struct snd_pcm_ops *ops;
     int err;
 
     err = snd_pcm_new(cco->card, "CCO PCM", device,
@@ -156,21 +139,14 @@ int cco_pcm_init(struct cco_device *cco, int device, int substreams)
     if (err < 0)
         return err;
     cco->pcm = pcm;
-    if (fake_buffer)
-        ops = &cco_pcm_ops_no_buf;
-    else
-        ops = &cco_pcm_ops;
-    snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, ops);
-    snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, ops);
+
+    snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &cco_pcm_ops);
+    snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &cco_pcm_ops);
+
     pcm->private_data = cco;
     pcm->info_flags = 0;
     strcpy(pcm->name, "CCO PCM");
-    if (!fake_buffer) {
-        snd_pcm_set_managed_buffer_all(pcm,
-            SNDRV_DMA_TYPE_CONTINUOUS,
-            NULL,
-            0, 64*1024);
-    }
+
     return 0;
 }
 /*============================================================================*/

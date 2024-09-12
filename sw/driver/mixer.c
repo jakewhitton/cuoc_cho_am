@@ -11,8 +11,8 @@ static int cco_volume_info(struct snd_kcontrol *kcontrol,
 {
     uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
     uinfo->count = 2;
-    uinfo->value.integer.min = mixer_volume_level_min;
-    uinfo->value.integer.max = mixer_volume_level_max;
+    uinfo->value.integer.min = MIXER_VOLUME_LEVEL_MIN;
+    uinfo->value.integer.max = MIXER_VOLUME_LEVEL_MIN;
 
     return 0;
 }
@@ -39,16 +39,16 @@ static int cco_volume_put(struct snd_kcontrol *kcontrol,
     int left, right;
 
     left = ucontrol->value.integer.value[0];
-    if (left < mixer_volume_level_min)
-        left = mixer_volume_level_min;
-    if (left > mixer_volume_level_max)
-        left = mixer_volume_level_max;
+    if (left < MIXER_VOLUME_LEVEL_MIN)
+        left = MIXER_VOLUME_LEVEL_MIN;
+    if (left > MIXER_VOLUME_LEVEL_MAX)
+        left = MIXER_VOLUME_LEVEL_MAX;
 
     right = ucontrol->value.integer.value[1];
-    if (right < mixer_volume_level_min)
-        right = mixer_volume_level_min;
-    if (right > mixer_volume_level_max)
-        right = mixer_volume_level_max;
+    if (right < MIXER_VOLUME_LEVEL_MIN)
+        right = MIXER_VOLUME_LEVEL_MIN;
+    if (right > MIXER_VOLUME_LEVEL_MAX)
+        right = MIXER_VOLUME_LEVEL_MAX;
 
     spin_lock_irq(&cco->mixer_lock);
     change = cco->mixer_volume[addr][0] != left ||

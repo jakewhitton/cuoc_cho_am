@@ -17,12 +17,6 @@ module_param_array(pcm_devs, int, NULL, 0444);
 MODULE_PARM_DESC(pcm_devs, "PCM devices # (0-4) for cco driver.");
 module_param_array(pcm_substreams, int, NULL, 0444);
 MODULE_PARM_DESC(pcm_substreams, "PCM substreams # (1-128) for cco driver.");
-module_param(mixer_volume_level_min, int, 0444);
-MODULE_PARM_DESC(mixer_volume_level_min, "Minimum mixer volume level for cco driver. Default: -50");
-module_param(mixer_volume_level_max, int, 0444);
-MODULE_PARM_DESC(mixer_volume_level_max, "Maximum mixer volume level for cco driver. Default: 100");
-module_param(fake_buffer, bool, 0444);
-MODULE_PARM_DESC(fake_buffer, "Fake buffer allocations.");
 
 static int __init kmod_init(void)
 {
