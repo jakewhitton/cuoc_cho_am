@@ -26,12 +26,12 @@ static int cco_probe(struct platform_device *devptr)
     int dev = devptr->id;
 
     err = snd_devm_card_new(
-		&devptr->dev,              /* parent device */
-		idx[dev],                  /* card index */
-		id[dev],                   /* card name */
-		THIS_MODULE,               /* module */
+        &devptr->dev,              /* parent device */
+        idx[dev],                  /* card index */
+        id[dev],                   /* card name */
+        THIS_MODULE,               /* module */
         sizeof(struct cco_device), /* private_data size */
-		&card);                    /* snd_card instance */
+        &card);                    /* snd_card instance */
     if (err < 0)
         return err;
     cco = card->private_data;
