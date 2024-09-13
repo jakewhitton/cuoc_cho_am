@@ -6,8 +6,8 @@
 
 #include "device.h"
 
-#define MAX_PCM_DEVICES    4
-#define MAX_PCM_SUBSTREAMS 128
+#define PCM_DEVICES_PER_CARD      1
+#define PCM_SUBSTREAMS_PER_DEVICE 2
 
 static const struct snd_pcm_hardware cco_pcm_hardware = {
     // General info

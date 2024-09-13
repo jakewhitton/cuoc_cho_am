@@ -6,14 +6,6 @@
 
 #define CCO_DRIVER    "cco"
 
-int   idx           [SNDRV_CARDS] = SNDRV_DEFAULT_IDX; /* Index 0-MAX */
-char *id            [SNDRV_CARDS] = SNDRV_DEFAULT_STR; /* ID for this card */
-bool  enable        [SNDRV_CARDS] = {1, [1 ... (SNDRV_CARDS - 1)] = 0};
-int   pcm_devs      [SNDRV_CARDS] = {[0 ... (SNDRV_CARDS - 1)] = 1};
-int   pcm_substreams[SNDRV_CARDS] = {[0 ... (SNDRV_CARDS - 1)] = 8};
-
-struct platform_device *devices[SNDRV_CARDS];
-
 /*==============================Driver interface==============================*/
 static int cco_probe(struct platform_device *devptr)
 {
@@ -24,8 +16,8 @@ static int cco_probe(struct platform_device *devptr)
 
     err = snd_devm_card_new(
         &devptr->dev,              /* parent device */
-        idx[dev],                  /* card index */
-        id[dev],                   /* card name */
+        -1,                        /* card index, -1 makes core assign for us */
+        NULL,                      /* card name */
         THIS_MODULE,               /* module */
         sizeof(struct cco_device), /* private_data size */
         &card);                    /* snd_card instance */
@@ -34,13 +26,8 @@ static int cco_probe(struct platform_device *devptr)
     cco = card->private_data;
     cco->card = card;
 
-    for (i = 0; i < MAX_PCM_DEVICES && i < pcm_devs[dev]; i++) {
-        if (pcm_substreams[dev] < 1)
-            pcm_substreams[dev] = 1;
-        if (pcm_substreams[dev] > MAX_PCM_SUBSTREAMS)
-            pcm_substreams[dev] = MAX_PCM_SUBSTREAMS;
-
-        err = cco_pcm_init(cco, i, pcm_substreams[dev]);
+    for (i = 0; i < PCM_DEVICES_PER_CARD; i++) {
+        err = cco_pcm_init(cco, i, PCM_SUBSTREAMS_PER_DEVICE);
         if (err < 0)
             return err;
     }
@@ -91,64 +78,73 @@ static struct platform_driver cco_driver = {
 
 
 /*==============================Device management=============================*/
-int cco_register_all(void)
+int cco_register_driver(void)
 {
-    int i, cards, err;
+    int err;
+
+    err = alloc_fake_buffer();
+    if (err < 0)
+        return err;
 
     err = platform_driver_register(&cco_driver);
     if (err < 0)
         return err;
 
-    err = alloc_fake_buffer();
-    if (err < 0) {
-        platform_driver_unregister(&cco_driver);
-        return err;
-    }
+    return 0;
+}
 
-    cards = 0;
-    for (i = 0; i < SNDRV_CARDS; i++) {
-        struct platform_device *device;
-        if (!enable[i])
-            continue;
+void cco_unregister_driver(void)
+{
+    platform_driver_unregister(&cco_driver);
 
-        // Register platform device, which will cause probe()
-        // method to be called if name supplied matches that of
-        // driver that was previously registered
-        device = platform_device_register_simple(
-            CCO_DRIVER, /* driver name */
-            i,          /* id */
-            NULL,       /* resources */
-            0);         /* num resources */
-        if (IS_ERR(device))
-            continue;
+    free_fake_buffer();
+}
 
-        if (!platform_get_drvdata(device)) {
-            platform_device_unregister(device);
-            continue;
-        }
+static struct platform_device *platform_devices[SNDRV_CARDS] = {[0 ... (SNDRV_CARDS - 1)] = NULL};
 
-        devices[i] = device;
-        cards++;
-    }
+int cco_register_device(void)
+{
 
-    if (!cards) {
-        printk(KERN_ERR "CCO soundcard not found or device busy\n");
-        cco_unregister_all();
+	// Identify id to be used for platform device allocation
+	int id = -1;
+	for (id = 0; id < SNDRV_CARDS; ++id) {
+		if (!platform_devices[id])
+			break;
+	}
+	if (id == SNDRV_CARDS) {
+        printk(KERN_ERR "cco: cco_register_device() failed to assign id");
+		return -ENODEV;
+	}
+
+    // Register platform device, which will cause probe()
+    // method to be called if name supplied matches that of
+    // driver that was previously registered
+    struct platform_device *device = platform_device_register_simple(
+        CCO_DRIVER, /* driver name */
+        id,         /* id */
+        NULL,       /* resources */
+        0);         /* num resources */
+    if (IS_ERR(device))
+        return -ENODEV;
+
+    if (!platform_get_drvdata(device)) {
+        printk(KERN_ERR "cco: platform_get_drvdata() failed, check probe()");
+        platform_device_unregister(device);
         return -ENODEV;
     }
+
+	platform_devices[id] = device;
 
     return 0;
 }
 
-void cco_unregister_all(void)
+void cco_unregister_devices(void)
 {
-    int i;
-
-    for (i = 0; i < ARRAY_SIZE(devices); ++i)
-        platform_device_unregister(devices[i]);
-
-    platform_driver_unregister(&cco_driver);
-
-    free_fake_buffer();
+	int id;
+	for (id = 0; id < SNDRV_CARDS; ++id) {
+		struct platform_device *device = platform_devices[id];
+		if (device)
+			platform_device_unregister(device);
+	}
 }
 /*============================================================================*/

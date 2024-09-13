@@ -19,15 +19,10 @@ struct cco_device {
     struct snd_kcontrol *cd_switch_ctl;
 };
 
-extern int   idx           [SNDRV_CARDS]; /* Index 0-MAX */
-extern char *id            [SNDRV_CARDS]; /* ID for this card */
-extern bool  enable        [SNDRV_CARDS];
-extern int   pcm_devs      [SNDRV_CARDS];
-extern int   pcm_substreams[SNDRV_CARDS];
+int cco_register_driver(void);
+void cco_unregister_driver(void);
 
-extern struct platform_device *devices[SNDRV_CARDS];
-
-int cco_register_all(void);
-void cco_unregister_all(void);
+int cco_register_device(void);
+void cco_unregister_devices(void);
 
 #endif
