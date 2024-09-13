@@ -24,8 +24,7 @@ static int cco_pcm_open(struct snd_pcm_substream *substream)
         runtime->hw.info |= SNDRV_PCM_INFO_NONINTERLEAVED;
     }
     if (substream->pcm->device & 2)
-        runtime->hw.info &= ~(SNDRV_PCM_INFO_MMAP |
-                      SNDRV_PCM_INFO_MMAP_VALID);
+        runtime->hw.info &= ~(SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID);
 
     return 0;
 }
@@ -52,13 +51,14 @@ static int cco_pcm_prepare(struct snd_pcm_substream *substream)
 static int cco_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 {
     switch (cmd) {
-    case SNDRV_PCM_TRIGGER_START:
-    case SNDRV_PCM_TRIGGER_RESUME:
-        return get_cco_ops(substream)->start(substream);
-    case SNDRV_PCM_TRIGGER_STOP:
-    case SNDRV_PCM_TRIGGER_SUSPEND:
-        return get_cco_ops(substream)->stop(substream);
+        case SNDRV_PCM_TRIGGER_START:
+        case SNDRV_PCM_TRIGGER_RESUME:
+            return get_cco_ops(substream)->start(substream);
+        case SNDRV_PCM_TRIGGER_STOP:
+        case SNDRV_PCM_TRIGGER_SUSPEND:
+            return get_cco_ops(substream)->stop(substream);
     }
+
     return -EINVAL;
 }
 
@@ -132,10 +132,12 @@ int cco_pcm_init(struct cco_device *cco, int device, int substreams)
     struct snd_pcm *pcm;
     int err;
 
-    err = snd_pcm_new(cco->card, "CCO PCM", device,
+    err = snd_pcm_new(cco->card, /* snd_card instance */
+                      "CCO PCM", /* id */
+                      device,    /* device number */
                       substreams /* playback_count */,
                       substreams /* capture_count */,
-                      &pcm);
+                      &pcm);     /* pcm intance */
     if (err < 0)
         return err;
     cco->pcm = pcm;

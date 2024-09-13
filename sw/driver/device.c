@@ -105,16 +105,16 @@ static struct platform_device *platform_devices[SNDRV_CARDS] = {[0 ... (SNDRV_CA
 int cco_register_device(void)
 {
 
-	// Identify id to be used for platform device allocation
-	int id = -1;
-	for (id = 0; id < SNDRV_CARDS; ++id) {
-		if (!platform_devices[id])
-			break;
-	}
-	if (id == SNDRV_CARDS) {
+    // Identify id to be used for platform device allocation
+    int id = -1;
+    for (id = 0; id < SNDRV_CARDS; ++id) {
+        if (!platform_devices[id])
+            break;
+    }
+    if (id == SNDRV_CARDS) {
         printk(KERN_ERR "cco: cco_register_device() failed to assign id");
-		return -ENODEV;
-	}
+        return -ENODEV;
+    }
 
     // Register platform device, which will cause probe()
     // method to be called if name supplied matches that of
@@ -133,18 +133,18 @@ int cco_register_device(void)
         return -ENODEV;
     }
 
-	platform_devices[id] = device;
+    platform_devices[id] = device;
 
     return 0;
 }
 
 void cco_unregister_devices(void)
 {
-	int id;
-	for (id = 0; id < SNDRV_CARDS; ++id) {
-		struct platform_device *device = platform_devices[id];
-		if (device)
-			platform_device_unregister(device);
-	}
+    int id;
+    for (id = 0; id < SNDRV_CARDS; ++id) {
+        struct platform_device *device = platform_devices[id];
+        if (device)
+            platform_device_unregister(device);
+    }
 }
 /*============================================================================*/

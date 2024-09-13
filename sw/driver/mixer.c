@@ -65,17 +65,17 @@ static const DECLARE_TLV_DB_SCALE(db_scale_cco, -4500, 30, 0);
 #define CCO_VOLUME(xname, xindex, addr)                  \
 {                                                        \
     .iface         = SNDRV_CTL_ELEM_IFACE_MIXER,         \
-    .access        = ( SNDRV_CTL_ELEM_ACCESS_READWRITE   \
-                     | SNDRV_CTL_ELEM_ACCESS_TLV_READ ), \
     .name          = xname,                              \
     .index         = xindex,                             \
+    .access        = ( SNDRV_CTL_ELEM_ACCESS_READWRITE   \
+                     | SNDRV_CTL_ELEM_ACCESS_TLV_READ ), \
     .info          = cco_volume_info,                    \
     .get           = cco_volume_get,                     \
     .put           = cco_volume_put,                     \
-    .private_value = addr,                               \
     .tlv           = {                                   \
         .p = db_scale_cco                                \
-    }                                                    \
+    },                                                   \
+    .private_value = addr,                               \
 }
 /*============================================================================*/
 
@@ -91,6 +91,7 @@ static int cco_capsrc_get(struct snd_kcontrol *kcontrol,
     ucontrol->value.integer.value[0] = cco->capture_source[addr][0];
     ucontrol->value.integer.value[1] = cco->capture_source[addr][1];
     spin_unlock_irq(&cco->mixer_lock);
+
     return 0;
 }
 
@@ -103,12 +104,14 @@ static int cco_capsrc_put(struct snd_kcontrol *kcontrol,
 
     left = ucontrol->value.integer.value[0] & 1;
     right = ucontrol->value.integer.value[1] & 1;
+
     spin_lock_irq(&cco->mixer_lock);
     change = cco->capture_source[addr][0] != left &&
              cco->capture_source[addr][1] != right;
     cco->capture_source[addr][0] = left;
     cco->capture_source[addr][1] = right;
     spin_unlock_irq(&cco->mixer_lock);
+
     return change;
 }
 
@@ -120,7 +123,7 @@ static int cco_capsrc_put(struct snd_kcontrol *kcontrol,
     .info          = snd_ctl_boolean_stereo_info, \
     .get           = cco_capsrc_get,              \
     .put           = cco_capsrc_put,              \
-    .private_value = addr                         \
+    .private_value = addr,                        \
 }
 /*============================================================================*/
 
@@ -138,8 +141,8 @@ static int cco_iobox_get(struct snd_kcontrol *kcontrol,
                          struct snd_ctl_elem_value *value)
 {
     struct cco_device *cco = snd_kcontrol_chip(kcontrol);
-
     value->value.enumerated.item[0] = cco->iobox;
+
     return 0;
 }
 
@@ -209,10 +212,14 @@ int cco_mixer_init(struct cco_device *cco)
     cco->iobox = 1;
 
     for (i = 0; i < ARRAY_SIZE(cco_controls); i++) {
+		// Create new control
         kcontrol = snd_ctl_new1(&cco_controls[i], cco);
+
+		// Add it to the card
         err = snd_ctl_add(card, kcontrol);
         if (err < 0)
             return err;
+
         if (!strcmp(kcontrol->id.name, "CD Volume"))
             cco->cd_volume_ctl = kcontrol;
         else if (!strcmp(kcontrol->id.name, "CD Capture Switch"))

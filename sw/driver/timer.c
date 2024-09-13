@@ -28,10 +28,12 @@ static int cco_systimer_create(struct snd_pcm_substream *substream)
     dpcm = kzalloc(sizeof(*dpcm), GFP_KERNEL);
     if (!dpcm)
         return -ENOMEM;
+
     substream->runtime->private_data = dpcm;
     timer_setup(&dpcm->timer, cco_systimer_callback, 0);
     spin_lock_init(&dpcm->lock);
     dpcm->substream = substream;
+
     return 0;
 }
 
@@ -58,19 +60,23 @@ static int cco_systimer_prepare(struct snd_pcm_substream *substream)
 static int cco_systimer_start(struct snd_pcm_substream *substream)
 {
     struct cco_systimer_pcm *dpcm = substream->runtime->private_data;
+
     spin_lock(&dpcm->lock);
     dpcm->base_time = jiffies;
     cco_systimer_rearm(dpcm);
     spin_unlock(&dpcm->lock);
+
     return 0;
 }
 
 static int cco_systimer_stop(struct snd_pcm_substream *substream)
 {
     struct cco_systimer_pcm *dpcm = substream->runtime->private_data;
+
     spin_lock(&dpcm->lock);
     del_timer(&dpcm->timer);
     spin_unlock(&dpcm->lock);
+
     return 0;
 }
 
@@ -84,6 +90,7 @@ static snd_pcm_uframes_t cco_systimer_pointer(
     cco_systimer_update(dpcm);
     pos = dpcm->frac_pos / HZ;
     spin_unlock(&dpcm->lock);
+
     return pos;
 }
 
@@ -111,6 +118,7 @@ static void cco_systimer_callback(struct timer_list *t)
     elapsed = dpcm->elapsed;
     dpcm->elapsed = 0;
     spin_unlock_irqrestore(&dpcm->lock, flags);
+
     if (elapsed)
         snd_pcm_period_elapsed(dpcm->substream);
 }
@@ -118,7 +126,7 @@ static void cco_systimer_callback(struct timer_list *t)
 static void cco_systimer_rearm(struct cco_systimer_pcm *dpcm)
 {
     mod_timer(&dpcm->timer, jiffies +
-        DIV_ROUND_UP(dpcm->frac_period_rest, dpcm->rate));
+              DIV_ROUND_UP(dpcm->frac_period_rest, dpcm->rate));
 }
 
 static void cco_systimer_update(struct cco_systimer_pcm *dpcm)
@@ -128,15 +136,20 @@ static void cco_systimer_update(struct cco_systimer_pcm *dpcm)
     delta = jiffies - dpcm->base_time;
     if (!delta)
         return;
+
     dpcm->base_time += delta;
     delta *= dpcm->rate;
     dpcm->frac_pos += delta;
-    while (dpcm->frac_pos >= dpcm->frac_buffer_size)
+
+    while (dpcm->frac_pos >= dpcm->frac_buffer_size) {
         dpcm->frac_pos -= dpcm->frac_buffer_size;
+	}
+
     while (dpcm->frac_period_rest <= delta) {
         dpcm->elapsed++;
         dpcm->frac_period_rest += dpcm->frac_period_size;
     }
+
     dpcm->frac_period_rest -= delta;
 }
 /*============================================================================*/
