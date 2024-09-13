@@ -5,9 +5,13 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 
+#include <linux/platform_device.h>
+
 #include "mixer.h"
 
 struct cco_device {
+	bool reserved;
+	struct platform_device platform_device;
     struct snd_card *card;
     struct snd_pcm *pcm;
     struct snd_pcm_hardware pcm_hw;
@@ -23,6 +27,7 @@ int cco_register_driver(void);
 void cco_unregister_driver(void);
 
 int cco_register_device(void);
+void cco_unregister_device(struct cco_device *cco);
 void cco_unregister_devices(void);
 
 #endif

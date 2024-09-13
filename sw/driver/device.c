@@ -6,6 +6,8 @@
 
 #define CCO_DRIVER    "cco"
 
+static struct cco_device *devices[SNDRV_CARDS];
+
 /*==============================Driver interface==============================*/
 static int cco_probe(struct platform_device *devptr)
 {
@@ -84,13 +86,18 @@ int cco_register_driver(void)
 
     err = alloc_fake_buffer();
     if (err < 0)
-        return err;
+        goto exit_error;
 
     err = platform_driver_register(&cco_driver);
     if (err < 0)
-        return err;
+        goto undo_alloc;
 
     return 0;
+
+undo_alloc:
+	free_fake_buffer();
+exit_error:
+	return err;
 }
 
 void cco_unregister_driver(void)
@@ -100,51 +107,83 @@ void cco_unregister_driver(void)
     free_fake_buffer();
 }
 
-static struct platform_device *platform_devices[SNDRV_CARDS] = {[0 ... (SNDRV_CARDS - 1)] = NULL};
+static void cco_release_device(struct device *dev)
+{
+	struct cco_device *cco = container_of(
+		dev, struct cco_device, platform_device.dev);
+    kfree(cco);
+}
 
 int cco_register_device(void)
 {
+	int err, id;
+	struct cco_device *cco;
 
     // Identify id to be used for platform device allocation
-    int id = -1;
     for (id = 0; id < SNDRV_CARDS; ++id) {
-        if (!platform_devices[id])
+        if (!devices[id])
             break;
     }
     if (id == SNDRV_CARDS) {
         printk(KERN_ERR "cco: cco_register_device() failed to assign id");
-        return -ENODEV;
+		err = -ENODEV;
+		goto exit_error;
     }
 
-    // Register platform device, which will cause probe()
-    // method to be called if name supplied matches that of
-    // driver that was previously registered
-    struct platform_device *device = platform_device_register_simple(
-        CCO_DRIVER, /* driver name */
-        id,         /* id */
-        NULL,       /* resources */
-        0);         /* num resources */
-    if (IS_ERR(device))
-        return -ENODEV;
+	// Set up platform device to be registered
+	cco = kzalloc(sizeof(*cco), GFP_KERNEL);
+	if (!cco) {
+		err = -ENOMEM;
+		goto exit_error;
 
-    if (!platform_get_drvdata(device)) {
+	}
+	cco->platform_device.name = CCO_DRIVER;
+	cco->platform_device.id = id;
+	cco->platform_device.dev.release = cco_release_device;
+
+    // Register platform device, which will cause probe() method to be called if
+	// name supplied matches that of driver that was previously registered
+    err = platform_device_register(&cco->platform_device);
+    if (err < 0) {
+        printk(KERN_ERR "cco: platform_device_register() failed");
+		goto undo_alloc;
+	}
+
+	// Verify that private driver data has been set correctly
+    if (!platform_get_drvdata(&cco->platform_device)) {
         printk(KERN_ERR "cco: platform_get_drvdata() failed, check probe()");
-        platform_device_unregister(device);
-        return -ENODEV;
+		err = -ENODEV;
+		goto undo_register;
     }
 
-    platform_devices[id] = device;
+    devices[id] = cco;
 
     return 0;
+
+undo_register:
+	// Note: platform_device_unregister() will call cco_release_device(), which
+	// will free the cco_device structure, so we skip over undo_alloc to avoid
+	// double freeing
+	platform_device_unregister(&cco->platform_device);
+	goto exit_error;
+undo_alloc:
+	kfree(cco);
+exit_error:
+	return err;
+}
+
+void cco_unregister_device(struct cco_device *cco)
+{
+	platform_device_unregister(&cco->platform_device);
 }
 
 void cco_unregister_devices(void)
 {
     int id;
     for (id = 0; id < SNDRV_CARDS; ++id) {
-        struct platform_device *device = platform_devices[id];
-        if (device)
-            platform_device_unregister(device);
+		struct cco_device *cco = devices[id];
+        if (cco)
+			cco_unregister_device(cco);
     }
 }
 /*============================================================================*/
