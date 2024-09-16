@@ -14,7 +14,7 @@ static int __init kmod_init(void)
     err = cco_register_driver();
     if (err < 0) {
         printk(KERN_ERR "cco: cco_register_driver() failed");
-        return err;
+        goto exit_error;
     }
 
     // Create a single device upon module loading
@@ -26,11 +26,15 @@ static int __init kmod_init(void)
     err = cco_register_device();
     if (err < 0) {
         printk(KERN_ERR "cco: cco_register_device() failed");
-        cco_unregister_driver();
-        return err;
+        goto undo_register_driver;
     }
 
     return 0;
+
+undo_register_driver:
+    cco_unregister_driver();
+exit_error:
+    return err;
 }
 
 static void __exit kmod_exit(void)

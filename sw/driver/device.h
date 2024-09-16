@@ -10,11 +10,8 @@
 #include "mixer.h"
 
 struct cco_device {
-	bool reserved;
-	struct platform_device platform_device;
+    struct platform_device pdev;
     struct snd_card *card;
-    struct snd_pcm *pcm;
-    struct snd_pcm_hardware pcm_hw;
     spinlock_t mixer_lock;
     int mixer_volume[MIXER_ADDR_LAST+1][2];
     int capture_source[MIXER_ADDR_LAST+1][2];
@@ -22,6 +19,9 @@ struct cco_device {
     struct snd_kcontrol *cd_volume_ctl;
     struct snd_kcontrol *cd_switch_ctl;
 };
+
+#define pdev_to_cco(pdev) container_of((pdev), struct cco_device, pdev)
+#define dev_to_cco(dev) container_of((dev), struct cco_device, pdev.dev)
 
 int cco_register_driver(void);
 void cco_unregister_driver(void);

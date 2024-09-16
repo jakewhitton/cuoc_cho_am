@@ -17,24 +17,30 @@ struct cco_systimer_pcm {
 
 // Helpers
 static void cco_systimer_callback(struct timer_list *t);
-static void cco_systimer_rearm(struct cco_systimer_pcm *dpcm);
-static void cco_systimer_update(struct cco_systimer_pcm *dpcm);
+static void cco_systimer_rearm(struct cco_systimer_pcm *pcm);
+static void cco_systimer_update(struct cco_systimer_pcm *pcm);
 
 /*===========================System timer interface===========================*/
 static int cco_systimer_create(struct snd_pcm_substream *substream)
 {
-    struct cco_systimer_pcm *dpcm;
+    int err;
 
-    dpcm = kzalloc(sizeof(*dpcm), GFP_KERNEL);
-    if (!dpcm)
-        return -ENOMEM;
+    struct cco_systimer_pcm *pcm;
+    pcm = kzalloc(sizeof(*pcm), GFP_KERNEL);
+    if (!pcm) {
+        err = -ENOMEM;
+        goto exit_error;
+    }
 
-    substream->runtime->private_data = dpcm;
-    timer_setup(&dpcm->timer, cco_systimer_callback, 0);
-    spin_lock_init(&dpcm->lock);
-    dpcm->substream = substream;
+    substream->runtime->private_data = pcm;
+    timer_setup(&pcm->timer, cco_systimer_callback, 0);
+    spin_lock_init(&pcm->lock);
+    pcm->substream = substream;
 
     return 0;
+
+exit_error:
+    return err;
 }
 
 static void cco_systimer_free(struct snd_pcm_substream *substream)
@@ -45,37 +51,37 @@ static void cco_systimer_free(struct snd_pcm_substream *substream)
 static int cco_systimer_prepare(struct snd_pcm_substream *substream)
 {
     struct snd_pcm_runtime *runtime = substream->runtime;
-    struct cco_systimer_pcm *dpcm = runtime->private_data;
+    struct cco_systimer_pcm *pcm = runtime->private_data;
 
-    dpcm->frac_pos = 0;
-    dpcm->rate = runtime->rate;
-    dpcm->frac_buffer_size = runtime->buffer_size * HZ;
-    dpcm->frac_period_size = runtime->period_size * HZ;
-    dpcm->frac_period_rest = dpcm->frac_period_size;
-    dpcm->elapsed = 0;
+    pcm->frac_pos = 0;
+    pcm->rate = runtime->rate;
+    pcm->frac_buffer_size = runtime->buffer_size * HZ;
+    pcm->frac_period_size = runtime->period_size * HZ;
+    pcm->frac_period_rest = pcm->frac_period_size;
+    pcm->elapsed = 0;
 
     return 0;
 }
 
 static int cco_systimer_start(struct snd_pcm_substream *substream)
 {
-    struct cco_systimer_pcm *dpcm = substream->runtime->private_data;
+    struct cco_systimer_pcm *pcm = substream->runtime->private_data;
 
-    spin_lock(&dpcm->lock);
-    dpcm->base_time = jiffies;
-    cco_systimer_rearm(dpcm);
-    spin_unlock(&dpcm->lock);
+    spin_lock(&pcm->lock);
+    pcm->base_time = jiffies;
+    cco_systimer_rearm(pcm);
+    spin_unlock(&pcm->lock);
 
     return 0;
 }
 
 static int cco_systimer_stop(struct snd_pcm_substream *substream)
 {
-    struct cco_systimer_pcm *dpcm = substream->runtime->private_data;
+    struct cco_systimer_pcm *pcm = substream->runtime->private_data;
 
-    spin_lock(&dpcm->lock);
-    del_timer(&dpcm->timer);
-    spin_unlock(&dpcm->lock);
+    spin_lock(&pcm->lock);
+    del_timer(&pcm->timer);
+    spin_unlock(&pcm->lock);
 
     return 0;
 }
@@ -83,13 +89,13 @@ static int cco_systimer_stop(struct snd_pcm_substream *substream)
 static snd_pcm_uframes_t cco_systimer_pointer(
     struct snd_pcm_substream *substream)
 {
-    struct cco_systimer_pcm *dpcm = substream->runtime->private_data;
+    struct cco_systimer_pcm *pcm = substream->runtime->private_data;
     snd_pcm_uframes_t pos;
 
-    spin_lock(&dpcm->lock);
-    cco_systimer_update(dpcm);
-    pos = dpcm->frac_pos / HZ;
-    spin_unlock(&dpcm->lock);
+    spin_lock(&pcm->lock);
+    cco_systimer_update(pcm);
+    pos = pcm->frac_pos / HZ;
+    spin_unlock(&pcm->lock);
 
     return pos;
 }
@@ -108,48 +114,48 @@ const struct cco_timer_ops cco_systimer_ops = {
 /*==================================Helpers===================================*/
 static void cco_systimer_callback(struct timer_list *t)
 {
-    struct cco_systimer_pcm *dpcm = from_timer(dpcm, t, timer);
+    struct cco_systimer_pcm *pcm = from_timer(pcm, t, timer);
     unsigned long flags;
     int elapsed = 0;
 
-    spin_lock_irqsave(&dpcm->lock, flags);
-    cco_systimer_update(dpcm);
-    cco_systimer_rearm(dpcm);
-    elapsed = dpcm->elapsed;
-    dpcm->elapsed = 0;
-    spin_unlock_irqrestore(&dpcm->lock, flags);
+    spin_lock_irqsave(&pcm->lock, flags);
+    cco_systimer_update(pcm);
+    cco_systimer_rearm(pcm);
+    elapsed = pcm->elapsed;
+    pcm->elapsed = 0;
+    spin_unlock_irqrestore(&pcm->lock, flags);
 
     if (elapsed)
-        snd_pcm_period_elapsed(dpcm->substream);
+        snd_pcm_period_elapsed(pcm->substream);
 }
 
-static void cco_systimer_rearm(struct cco_systimer_pcm *dpcm)
+static void cco_systimer_rearm(struct cco_systimer_pcm *pcm)
 {
-    mod_timer(&dpcm->timer, jiffies +
-              DIV_ROUND_UP(dpcm->frac_period_rest, dpcm->rate));
+    mod_timer(&pcm->timer, jiffies +
+              DIV_ROUND_UP(pcm->frac_period_rest, pcm->rate));
 }
 
-static void cco_systimer_update(struct cco_systimer_pcm *dpcm)
+static void cco_systimer_update(struct cco_systimer_pcm *pcm)
 {
     unsigned long delta;
 
-    delta = jiffies - dpcm->base_time;
+    delta = jiffies - pcm->base_time;
     if (!delta)
         return;
 
-    dpcm->base_time += delta;
-    delta *= dpcm->rate;
-    dpcm->frac_pos += delta;
+    pcm->base_time += delta;
+    delta *= pcm->rate;
+    pcm->frac_pos += delta;
 
-    while (dpcm->frac_pos >= dpcm->frac_buffer_size) {
-        dpcm->frac_pos -= dpcm->frac_buffer_size;
-	}
-
-    while (dpcm->frac_period_rest <= delta) {
-        dpcm->elapsed++;
-        dpcm->frac_period_rest += dpcm->frac_period_size;
+    while (pcm->frac_pos >= pcm->frac_buffer_size) {
+        pcm->frac_pos -= pcm->frac_buffer_size;
     }
 
-    dpcm->frac_period_rest -= delta;
+    while (pcm->frac_period_rest <= delta) {
+        pcm->elapsed++;
+        pcm->frac_period_rest += pcm->frac_period_size;
+    }
+
+    pcm->frac_period_rest -= delta;
 }
 /*============================================================================*/

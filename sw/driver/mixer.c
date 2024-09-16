@@ -212,10 +212,10 @@ int cco_mixer_init(struct cco_device *cco)
     cco->iobox = 1;
 
     for (i = 0; i < ARRAY_SIZE(cco_controls); i++) {
-		// Create new control
+        // Create new control
         kcontrol = snd_ctl_new1(&cco_controls[i], cco);
 
-		// Add it to the card
+        // Add it to the card
         err = snd_ctl_add(card, kcontrol);
         if (err < 0)
             return err;

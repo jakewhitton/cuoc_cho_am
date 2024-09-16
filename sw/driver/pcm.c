@@ -6,19 +6,16 @@ static void *page[2];
 /*================================PCM interface===============================*/
 static int cco_pcm_open(struct snd_pcm_substream *substream)
 {
-    struct cco_device *cco = snd_pcm_substream_chip(substream);
-    struct snd_pcm_runtime *runtime = substream->runtime;
-    const struct cco_timer_ops *ops;
     int err;
 
-    ops = &cco_systimer_ops;
-
+    const struct cco_timer_ops *ops = &cco_systimer_ops;
     err = ops->create(substream);
     if (err < 0)
-        return err;
+        goto exit_error;
     get_cco_ops(substream) = ops;
 
-    runtime->hw = cco->pcm_hw;
+    struct snd_pcm_runtime *runtime = substream->runtime;
+    runtime->hw = cco_pcm_hardware;
     if (substream->pcm->device & 1) {
         runtime->hw.info &= ~SNDRV_PCM_INFO_INTERLEAVED;
         runtime->hw.info |= SNDRV_PCM_INFO_NONINTERLEAVED;
@@ -27,6 +24,9 @@ static int cco_pcm_open(struct snd_pcm_substream *substream)
         runtime->hw.info &= ~(SNDRV_PCM_INFO_MMAP | SNDRV_PCM_INFO_MMAP_VALID);
 
     return 0;
+
+exit_error:
+    return err;
 }
 
 static int cco_pcm_close(struct snd_pcm_substream *substream)
@@ -116,7 +116,6 @@ void free_fake_buffer(void)
 int alloc_fake_buffer(void)
 {
     int i;
-
     for (i = 0; i < 2; i++) {
         page[i] = (void *)get_zeroed_page(GFP_KERNEL);
         if (!page[i]) {
@@ -124,31 +123,37 @@ int alloc_fake_buffer(void)
             return -ENOMEM;
         }
     }
+
     return 0;
 }
 
 int cco_pcm_init(struct cco_device *cco, int device, int substreams)
 {
-    struct snd_pcm *pcm;
     int err;
 
-    err = snd_pcm_new(cco->card, /* snd_card instance */
-                      "CCO PCM", /* id */
-                      device,    /* device number */
-                      substreams /* playback_count */,
-                      substreams /* capture_count */,
-                      &pcm);     /* pcm intance */
-    if (err < 0)
-        return err;
-    cco->pcm = pcm;
+    struct snd_pcm *pcm;
+    err = snd_pcm_new(
+        cco->card, /* snd_card instance */
+        "CCO PCM", /* id */
+        device,    /* device number */
+        substreams /* playback_count */,
+        substreams /* capture_count */,
+        &pcm);     /* pcm intance */
+    if (err < 0) {
+        printk(KERN_ERR "cco: snd_pcm_new() failed\n");
+        goto exit_error;
+    }
+
+    pcm->info_flags = 0;
+    strcpy(pcm->name, "CCO PCM");
+    pcm->private_data = cco;
 
     snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &cco_pcm_ops);
     snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &cco_pcm_ops);
 
-    pcm->private_data = cco;
-    pcm->info_flags = 0;
-    strcpy(pcm->name, "CCO PCM");
-
     return 0;
+
+exit_error:
+    return err;
 }
 /*============================================================================*/
