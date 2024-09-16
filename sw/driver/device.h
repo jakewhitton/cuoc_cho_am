@@ -23,9 +23,11 @@ struct cco_device {
 #define pdev_to_cco(pdev) container_of((pdev), struct cco_device, pdev)
 #define dev_to_cco(dev) container_of((dev), struct cco_device, pdev.dev)
 
+// Driver management
 int cco_register_driver(void);
 void cco_unregister_driver(void);
 
+// Device management
 int cco_register_device(void);
 void cco_unregister_device(struct cco_device *cco);
 void cco_unregister_devices(void);

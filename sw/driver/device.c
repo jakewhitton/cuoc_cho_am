@@ -5,9 +5,52 @@
 
 #define CCO_DRIVER    "cco"
 
-static struct cco_device *devices[SNDRV_CARDS];
+/*==============================Driver management=============================*/
+static int cco_probe(struct platform_device *pdev);
+static int cco_suspend(struct device *dev);
+static int cco_resume(struct device *dev);
 
-/*==============================Driver interface==============================*/
+static DEFINE_SIMPLE_DEV_PM_OPS(cco_pm, cco_suspend, cco_resume);
+
+static struct platform_driver cco_driver = {
+    .probe  = cco_probe,
+    .driver = {
+        .name = CCO_DRIVER,
+        .pm   = &cco_pm,
+    },
+};
+
+int cco_register_driver(void)
+{
+    int err;
+
+    err = alloc_fake_buffer();
+    if (err < 0)
+        goto exit_error;
+
+    err = platform_driver_register(&cco_driver);
+    if (err < 0) {
+        printk(KERN_ERR "cco: platform_driver_register() failed\n");
+        goto undo_alloc;
+    }
+
+    return 0;
+
+undo_alloc:
+    free_fake_buffer();
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
+
+void cco_unregister_driver(void)
+{
+    if (driver_find(cco_driver.driver.name, &platform_bus_type))
+        platform_driver_unregister(&cco_driver);
+
+    free_fake_buffer();
+}
+
 static int cco_probe(struct platform_device *pdev)
 {
     int err;
@@ -72,51 +115,12 @@ static int cco_resume(struct device *dev)
     snd_power_change_state(cco->card, SNDRV_CTL_POWER_D0);
     return 0;
 }
-
-static DEFINE_SIMPLE_DEV_PM_OPS(cco_pm, cco_suspend, cco_resume);
-
-static struct platform_driver cco_driver = {
-    .probe  = cco_probe,
-    .driver = {
-        .name = CCO_DRIVER,
-        .pm   = &cco_pm,
-    },
-};
-
-int cco_register_driver(void)
-{
-    int err;
-
-    err = alloc_fake_buffer();
-    if (err < 0)
-        goto exit_error;
-
-    err = platform_driver_register(&cco_driver);
-    if (err < 0) {
-        printk(KERN_ERR "cco: platform_driver_register() failed\n");
-        goto undo_alloc;
-    }
-
-    return 0;
-
-undo_alloc:
-    free_fake_buffer();
-exit_error:
-    CCO_LOG_FUNCTION_FAILURE(err);
-    return err;
-}
-
-void cco_unregister_driver(void)
-{
-    if (driver_find(cco_driver.driver.name, &platform_bus_type))
-        platform_driver_unregister(&cco_driver);
-
-    free_fake_buffer();
-}
 /*============================================================================*/
 
 
 /*==============================Device management=============================*/
+static struct cco_device *devices[SNDRV_CARDS];
+
 static void cco_release_device(struct device *dev)
 {
     struct cco_device *cco = dev_to_cco(dev);
