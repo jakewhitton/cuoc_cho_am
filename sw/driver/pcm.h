@@ -39,8 +39,8 @@ static const struct snd_pcm_hardware cco_pcm_hardware = {
     .fifo_size        = 0,
 };
 
-void free_fake_buffer(void);
 int alloc_fake_buffer(void);
+void free_fake_buffer(void);
 
 struct cco_device;
 int cco_pcm_init(struct cco_device *cco, int device, int substreams);

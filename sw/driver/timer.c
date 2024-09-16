@@ -1,5 +1,7 @@
 #include "timer.h"
 
+#include "log.h"
+
 struct cco_systimer_pcm {
     /* ops must be the first item */
     const struct cco_timer_ops *timer_ops;
@@ -40,6 +42,7 @@ static int cco_systimer_create(struct snd_pcm_substream *substream)
     return 0;
 
 exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
     return err;
 }
 

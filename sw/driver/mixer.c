@@ -202,23 +202,22 @@ static const struct snd_kcontrol_new cco_controls[] = {
 
 int cco_mixer_init(struct cco_device *cco)
 {
-    struct snd_card *card = cco->card;
-    struct snd_kcontrol *kcontrol;
-    unsigned int i;
     int err;
 
     spin_lock_init(&cco->mixer_lock);
-    strcpy(card->mixername, "CCO Mixer");
+    strcpy(cco->card->mixername, "CCO Mixer");
     cco->iobox = 1;
 
-    for (i = 0; i < ARRAY_SIZE(cco_controls); i++) {
+    for (int i = 0; i < ARRAY_SIZE(cco_controls); i++) {
         // Create new control
-        kcontrol = snd_ctl_new1(&cco_controls[i], cco);
+        struct snd_kcontrol *kcontrol = snd_ctl_new1(&cco_controls[i], cco);
 
         // Add it to the card
-        err = snd_ctl_add(card, kcontrol);
-        if (err < 0)
-            return err;
+        err = snd_ctl_add(cco->card, kcontrol);
+        if (err < 0) {
+            printk(KERN_ERR "cco: snd_ctl_add() failed\n");
+            goto exit_error;
+        }
 
         if (!strcmp(kcontrol->id.name, "CD Volume"))
             cco->cd_volume_ctl = kcontrol;
@@ -227,4 +226,8 @@ int cco_mixer_init(struct cco_device *cco)
     }
 
     return 0;
+
+exit_error:
+    printk(KERN_ERR "cco: cco_mixer_init() failed with err=%d\n", err);
+    return err;
 }

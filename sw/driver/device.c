@@ -1,7 +1,6 @@
 #include "device.h"
 
-#include <sound/initval.h>
-
+#include "log.h"
 #include "pcm.h"
 
 #define CCO_DRIVER    "cco"
@@ -12,7 +11,6 @@ static struct cco_device *devices[SNDRV_CARDS];
 static int cco_probe(struct platform_device *pdev)
 {
     int err;
-    struct cco_device *cco = pdev_to_cco(pdev);
 
     struct snd_card *card;
     err = snd_card_new(
@@ -26,26 +24,23 @@ static int cco_probe(struct platform_device *pdev)
         printk(KERN_ERR "cco: snd_card_new() failed\n");
         goto exit_error;
     }
-    cco->card = card;
-
     strcpy(card->driver, "cco");
     strcpy(card->shortname, "cuoc_cho_am");
     sprintf(card->longname, "cuoc_cho_am %i", pdev->id + 1);
+
+    struct cco_device *cco = pdev_to_cco(pdev);
     card->private_data = (void *)cco;
+    cco->card = card;
 
     for (int i = 0; i < PCM_DEVICES_PER_CARD; i++) {
         err = cco_pcm_init(cco, i, PCM_SUBSTREAMS_PER_DEVICE);
-        if (err < 0) {
-            printk(KERN_ERR "cco: cco_pcm_init() failed\n");
+        if (err < 0)
             goto undo_create_card;
-        }
     }
 
     err = cco_mixer_init(cco);
-    if (err < 0) {
-        printk(KERN_ERR "cco: cco_mixer_init() failed\n");
+    if (err < 0)
         goto undo_create_card;
-    }
 
     err = snd_card_register(card);
     if (err < 0) {
@@ -60,6 +55,7 @@ undo_create_card:
     snd_card_free(card);
     cco->card = NULL;
 exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
     return err;
 }
 
@@ -92,10 +88,8 @@ int cco_register_driver(void)
     int err;
 
     err = alloc_fake_buffer();
-    if (err < 0) {
-        printk(KERN_ERR "cco: alloc_fake_buffer() failed\n");
+    if (err < 0)
         goto exit_error;
-    }
 
     err = platform_driver_register(&cco_driver);
     if (err < 0) {
@@ -108,12 +102,14 @@ int cco_register_driver(void)
 undo_alloc:
     free_fake_buffer();
 exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
     return err;
 }
 
 void cco_unregister_driver(void)
 {
-    platform_driver_unregister(&cco_driver);
+    if (driver_find(cco_driver.driver.name, &platform_bus_type))
+        platform_driver_unregister(&cco_driver);
 
     free_fake_buffer();
 }
@@ -135,7 +131,7 @@ int cco_register_device(void)
 
     // Identify id to be used for platform device allocation
     int id;
-    for (id = 0; id < SNDRV_CARDS; ++id) {
+    for (id = 0; id <= SNDRV_CARDS; ++id) {
         if (!devices[id])
             break;
     }
@@ -145,13 +141,15 @@ int cco_register_device(void)
         goto exit_error;
     }
 
-    // Set up platform device to be registered
-    struct cco_device *cco = kzalloc(sizeof(struct cco_device), GFP_KERNEL);
+    // Allocate space for cco_device structure
+    struct cco_device *cco;
+    cco = kzalloc(sizeof(*cco), GFP_KERNEL);
     if (!cco) {
         err = -ENOMEM;
         goto exit_error;
-
     }
+
+    // Set up platform device to be registered
     cco->pdev.name = CCO_DRIVER;
     cco->pdev.id = id;
     cco->pdev.dev.release = cco_release_device;
@@ -171,6 +169,7 @@ int cco_register_device(void)
 undo_alloc:
     kfree(cco);
 exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
     return err;
 }
 
@@ -183,8 +182,7 @@ void cco_unregister_device(struct cco_device *cco)
 
 void cco_unregister_devices(void)
 {
-    int id;
-    for (id = 0; id < SNDRV_CARDS; ++id) {
+    for (int id = 0; id < SNDRV_CARDS; ++id) {
         struct cco_device *cco = devices[id];
         if (cco)
             cco_unregister_device(cco);

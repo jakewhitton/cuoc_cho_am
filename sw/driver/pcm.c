@@ -1,4 +1,6 @@
 #include "pcm.h"
+
+#include "log.h"
 #include "timer.h"
 
 static void *page[2];
@@ -26,6 +28,7 @@ static int cco_pcm_open(struct snd_pcm_substream *substream)
     return 0;
 
 exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
     return err;
 }
 
@@ -102,29 +105,34 @@ static const struct snd_pcm_ops cco_pcm_ops = {
 
 
 /*===============================Initialization===============================*/
+int alloc_fake_buffer(void)
+{
+    int err;
+
+    for (int i = 0; i < ARRAY_SIZE(page); i++) {
+        page[i] = (void *)get_zeroed_page(GFP_KERNEL);
+        if (!page[i]) {
+            err = -ENOMEM;
+            goto undo_alloc;
+        }
+    }
+
+    return 0;
+
+undo_alloc:
+    free_fake_buffer();
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
+
 void free_fake_buffer(void)
 {
-    int i;
-    for (i = 0; i < 2; i++) {
+    for (int i = 0; i < ARRAY_SIZE(page); i++) {
         if (page[i]) {
             free_page((unsigned long)page[i]);
             page[i] = NULL;
         }
     }
-}
-
-int alloc_fake_buffer(void)
-{
-    int i;
-    for (i = 0; i < 2; i++) {
-        page[i] = (void *)get_zeroed_page(GFP_KERNEL);
-        if (!page[i]) {
-            free_fake_buffer();
-            return -ENOMEM;
-        }
-    }
-
-    return 0;
 }
 
 int cco_pcm_init(struct cco_device *cco, int device, int substreams)
@@ -154,6 +162,7 @@ int cco_pcm_init(struct cco_device *cco, int device, int substreams)
     return 0;
 
 exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
     return err;
 }
 /*============================================================================*/
