@@ -5,8 +5,6 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 
-#include <linux/platform_device.h>
-
 #include "mixer.h"
 
 struct cco_device {

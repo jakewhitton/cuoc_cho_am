@@ -12,6 +12,8 @@ struct cco_timer_ops {
     snd_pcm_uframes_t (*pointer)(struct snd_pcm_substream *);
 };
 
+// Downcasts cco_systimer_pcm (larger structure) into cco_timer_ops, for the
+// purposes of exposing timer interface methods to the rest of the driver
 #define get_cco_ops(substream) \
     (*(const struct cco_timer_ops **)(substream)->runtime->private_data)
 

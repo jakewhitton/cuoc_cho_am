@@ -11,9 +11,16 @@ static int cco_pcm_open(struct snd_pcm_substream *substream)
     int err;
 
     const struct cco_timer_ops *ops = &cco_systimer_ops;
+
+    // Allocates a `struct cco_systimer_pcm` and smuggles it into private_data of
+    // subsystem->runtime.  Also initializes timer state and kicks off timer.
     err = ops->create(substream);
     if (err < 0)
         goto exit_error;
+
+    // Only overwrites `cco_systimer_pcm.timer_ops`, due to downcasting to
+    // `cco_timer_ops *` that get_cco_ops() performs.  Does not overwrite the
+    // rest of fields in cco_systimer_pcm
     get_cco_ops(substream) = ops;
 
     struct snd_pcm_runtime *runtime = substream->runtime;
