@@ -4,6 +4,7 @@
 #include <sound/tlv.h>
 
 #include "device.h"
+#include "log.h"
 
 /*===================================Volume===================================*/
 static int cco_volume_info(struct snd_kcontrol *kcontrol,
@@ -228,6 +229,6 @@ int cco_mixer_init(struct cco_device *cco)
     return 0;
 
 exit_error:
-    printk(KERN_ERR "cco: cco_mixer_init() failed with err=%d\n", err);
+    CCO_LOG_FUNCTION_FAILURE(err);
     return err;
 }
