@@ -1,5 +1,9 @@
 #include "pcm.h"
 
+#include <linux/slab.h>
+#include <sound/core.h>
+#include <sound/pcm.h>
+
 #include "log.h"
 
 /*===============================Initialization===============================*/
@@ -8,30 +12,33 @@ static const struct snd_pcm_ops cco_pcm_ops;
 
 static void *page[2];
 
-int cco_pcm_init(struct cco_device *cco, int device, int substreams)
+int cco_pcm_init(struct cco_device *cco)
 {
     int err;
 
-    struct snd_pcm *pcm;
-    err = snd_pcm_new(
-        cco->card, /* snd_card instance */
-        "CCO PCM", /* id */
-        device,    /* device number */
-        substreams /* playback_count */,
-        substreams /* capture_count */,
-        &pcm);     /* pcm intance */
-    if (err < 0) {
-        printk(KERN_ERR "cco: snd_pcm_new() failed\n");
-        goto exit_error;
+    for (int device = 0; device < PCM_DEVICES_PER_CARD; device++) {
+
+        struct snd_pcm *pcm;
+        err = snd_pcm_new(
+            cco->card,                 /* snd_card instance */
+            "CCO PCM",                 /* id */
+            device,                    /* device number */
+            PCM_SUBSTREAMS_PER_DEVICE, /* playback_count */
+            PCM_SUBSTREAMS_PER_DEVICE, /* capture_count */
+            &pcm);                     /* snd_pcm intance */
+        if (err < 0) {
+            printk(KERN_ERR "cco: snd_pcm_new() failed\n");
+            goto exit_error;
+        }
+        pcm->info_flags = 0;
+        strcpy(pcm->name, "CCO PCM");
+
+        // Sound core will propagate to snd_pcm_substream->private_data
+        pcm->private_data = cco;
+
+        snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &cco_pcm_ops);
+        snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &cco_pcm_ops);
     }
-    pcm->info_flags = 0;
-    strcpy(pcm->name, "CCO PCM");
-
-    // Sound core will propagate to snd_pcm_substream->private_data
-    pcm->private_data = cco;
-
-    snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &cco_pcm_ops);
-    snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &cco_pcm_ops);
 
     return 0;
 
@@ -73,6 +80,36 @@ void free_fake_buffer(void)
 
 
 /*================================PCM interface===============================*/
+static const struct snd_pcm_hardware cco_pcm_hardware = {
+    // General info
+    .info             = ( SNDRV_PCM_INFO_MMAP
+                        | SNDRV_PCM_INFO_INTERLEAVED
+                        | SNDRV_PCM_INFO_RESUME
+                        | SNDRV_PCM_INFO_MMAP_VALID ),
+
+    // Sample format
+    .formats          = ( SNDRV_PCM_FMTBIT_U8
+                        | SNDRV_PCM_FMTBIT_S16_LE),
+
+    // Sampling rate
+    .rates            = ( SNDRV_PCM_RATE_CONTINUOUS
+                        | SNDRV_PCM_RATE_8000_48000 ),
+    .rate_min         = 5500,
+    .rate_max         = 48000,
+
+    // Channels
+    .channels_min     = 1,
+    .channels_max     = 2,
+
+    // Buffer params
+    .buffer_bytes_max = 64*1024,
+    .period_bytes_min = 64,
+    .period_bytes_max = 64*1024,
+    .periods_min      = 1,
+    .periods_max      = 1024,
+    .fifo_size        = 0,
+};
+
 // State to be allocated per-substream
 struct cco_pcm_impl {
     // Misc state

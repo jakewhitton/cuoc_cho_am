@@ -3,9 +3,11 @@
 
 #include <linux/platform_device.h>
 #include <sound/core.h>
-#include <sound/pcm.h>
 
 #include "mixer.h"
+
+#define PCM_DEVICES_PER_CARD      1
+#define PCM_SUBSTREAMS_PER_DEVICE 2
 
 struct cco_device {
     struct platform_device pdev;

@@ -1,5 +1,8 @@
 #include "device.h"
 
+#include <linux/slab.h>
+#include <sound/pcm.h>
+
 #include "log.h"
 #include "pcm.h"
 
@@ -75,11 +78,9 @@ static int cco_probe(struct platform_device *pdev)
     card->private_data = (void *)cco;
     cco->card = card;
 
-    for (int i = 0; i < PCM_DEVICES_PER_CARD; i++) {
-        err = cco_pcm_init(cco, i, PCM_SUBSTREAMS_PER_DEVICE);
-        if (err < 0)
-            goto undo_create_card;
-    }
+    err = cco_pcm_init(cco);
+    if (err < 0)
+        goto undo_create_card;
 
     err = cco_mixer_init(cco);
     if (err < 0)
