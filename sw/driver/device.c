@@ -179,7 +179,7 @@ exit_error:
 
 void cco_unregister_device(int id)
 {
-    if (id < 0 || id > ARRAY_SIZE(devices))
+    if (id < 0 || id >= ARRAY_SIZE(devices))
         return;
 
     struct cco_device *cco = devices[id];
