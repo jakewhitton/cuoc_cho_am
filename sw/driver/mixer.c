@@ -1,6 +1,5 @@
 #include "mixer.h"
 
-#include <sound/control.h>
 #include <sound/tlv.h>
 
 #include "device.h"
@@ -14,10 +13,11 @@ static const int num_controls;
 int cco_mixer_init(struct cco_device *cco)
 {
     int err;
+    struct cco_mixer *m = &cco->mixer;
 
-    spin_lock_init(&cco->mixer_lock);
+    spin_lock_init(&m->lock);
     strcpy(cco->card->mixername, "CCO Mixer");
-    cco->iobox = 1;
+    m->iobox = 1;
 
     for (int i = 0; i < num_controls; i++) {
         // Create new control
@@ -31,9 +31,9 @@ int cco_mixer_init(struct cco_device *cco)
         }
 
         if (!strcmp(kcontrol->id.name, "CD Volume"))
-            cco->cd_volume_ctl = kcontrol;
+            m->cd_volume_ctl = kcontrol;
         else if (!strcmp(kcontrol->id.name, "CD Capture Switch"))
-            cco->cd_switch_ctl = kcontrol;
+            m->cd_switch_ctl = kcontrol;
     }
 
     return 0;
@@ -77,12 +77,13 @@ static int cco_volume_get(struct snd_kcontrol *kcontrol,
                           struct snd_ctl_elem_value *ucontrol)
 {
     struct cco_device *cco = snd_kcontrol_chip(kcontrol);
+    struct cco_mixer *m = &cco->mixer;
     int addr = kcontrol->private_value;
 
-    spin_lock_irq(&cco->mixer_lock);
-    ucontrol->value.integer.value[0] = cco->mixer_volume[addr][0];
-    ucontrol->value.integer.value[1] = cco->mixer_volume[addr][1];
-    spin_unlock_irq(&cco->mixer_lock);
+    spin_lock_irq(&m->lock);
+    ucontrol->value.integer.value[0] = m->volume[addr][0];
+    ucontrol->value.integer.value[1] = m->volume[addr][1];
+    spin_unlock_irq(&m->lock);
 
     return 0;
 }
@@ -91,27 +92,28 @@ static int cco_volume_put(struct snd_kcontrol *kcontrol,
                           struct snd_ctl_elem_value *ucontrol)
 {
     struct cco_device *cco = snd_kcontrol_chip(kcontrol);
-    int change, addr = kcontrol->private_value;
-    int left, right;
+    struct cco_mixer *m = &cco->mixer;
+    const int addr = kcontrol->private_value;
 
-    left = ucontrol->value.integer.value[0];
+    int left = ucontrol->value.integer.value[0];
     if (left < MIXER_VOLUME_LEVEL_MIN)
         left = MIXER_VOLUME_LEVEL_MIN;
     if (left > MIXER_VOLUME_LEVEL_MAX)
         left = MIXER_VOLUME_LEVEL_MAX;
 
-    right = ucontrol->value.integer.value[1];
+    int right = ucontrol->value.integer.value[1];
     if (right < MIXER_VOLUME_LEVEL_MIN)
         right = MIXER_VOLUME_LEVEL_MIN;
     if (right > MIXER_VOLUME_LEVEL_MAX)
         right = MIXER_VOLUME_LEVEL_MAX;
 
-    spin_lock_irq(&cco->mixer_lock);
-    change = cco->mixer_volume[addr][0] != left ||
-             cco->mixer_volume[addr][1] != right;
-    cco->mixer_volume[addr][0] = left;
-    cco->mixer_volume[addr][1] = right;
-    spin_unlock_irq(&cco->mixer_lock);
+    int change;
+    spin_lock_irq(&m->lock);
+    change = m->volume[addr][0] != left ||
+             m->volume[addr][1] != right;
+    m->volume[addr][0] = left;
+    m->volume[addr][1] = right;
+    spin_unlock_irq(&m->lock);
 
     return change;
 }
@@ -136,12 +138,13 @@ static int cco_capsrc_get(struct snd_kcontrol *kcontrol,
                           struct snd_ctl_elem_value *ucontrol)
 {
     struct cco_device *cco = snd_kcontrol_chip(kcontrol);
-    int addr = kcontrol->private_value;
+    struct cco_mixer *m = &cco->mixer;
+    const int addr = kcontrol->private_value;
 
-    spin_lock_irq(&cco->mixer_lock);
-    ucontrol->value.integer.value[0] = cco->capture_source[addr][0];
-    ucontrol->value.integer.value[1] = cco->capture_source[addr][1];
-    spin_unlock_irq(&cco->mixer_lock);
+    spin_lock_irq(&m->lock);
+    ucontrol->value.integer.value[0] = m->capture_source[addr][0];
+    ucontrol->value.integer.value[1] = m->capture_source[addr][1];
+    spin_unlock_irq(&m->lock);
 
     return 0;
 }
@@ -150,18 +153,19 @@ static int cco_capsrc_put(struct snd_kcontrol *kcontrol,
                           struct snd_ctl_elem_value *ucontrol)
 {
     struct cco_device *cco = snd_kcontrol_chip(kcontrol);
-    int change, addr = kcontrol->private_value;
-    int left, right;
+    struct cco_mixer *m = &cco->mixer;
+    const int addr = kcontrol->private_value;
 
-    left = ucontrol->value.integer.value[0] & 1;
-    right = ucontrol->value.integer.value[1] & 1;
+    const int left = ucontrol->value.integer.value[0] & 1;
+    const int right = ucontrol->value.integer.value[1] & 1;
 
-    spin_lock_irq(&cco->mixer_lock);
-    change = cco->capture_source[addr][0] != left &&
-             cco->capture_source[addr][1] != right;
-    cco->capture_source[addr][0] = left;
-    cco->capture_source[addr][1] = right;
-    spin_unlock_irq(&cco->mixer_lock);
+    int change;
+    spin_lock_irq(&m->lock);
+    change = m->capture_source[addr][0] != left &&
+             m->capture_source[addr][1] != right;
+    m->capture_source[addr][0] = left;
+    m->capture_source[addr][1] = right;
+    spin_unlock_irq(&m->lock);
 
     return change;
 }
@@ -190,7 +194,8 @@ static int cco_iobox_get(struct snd_kcontrol *kcontrol,
                          struct snd_ctl_elem_value *value)
 {
     struct cco_device *cco = snd_kcontrol_chip(kcontrol);
-    value->value.enumerated.item[0] = cco->iobox;
+    struct cco_mixer *m = &cco->mixer;
+    value->value.enumerated.item[0] = m->iobox;
 
     return 0;
 }
@@ -199,27 +204,27 @@ static int cco_iobox_put(struct snd_kcontrol *kcontrol,
                          struct snd_ctl_elem_value *value)
 {
     struct cco_device *cco = snd_kcontrol_chip(kcontrol);
-    int changed;
+    struct cco_mixer *m = &cco->mixer;
 
     if (value->value.enumerated.item[0] > 1)
         return -EINVAL;
 
-    changed = value->value.enumerated.item[0] != cco->iobox;
+    const int changed = value->value.enumerated.item[0] != m->iobox;
     if (changed) {
-        cco->iobox = value->value.enumerated.item[0];
+        m->iobox = value->value.enumerated.item[0];
 
-        if (cco->iobox) {
-            cco->cd_volume_ctl->vd[0].access &= ~SNDRV_CTL_ELEM_ACCESS_INACTIVE;
-            cco->cd_switch_ctl->vd[0].access &= ~SNDRV_CTL_ELEM_ACCESS_INACTIVE;
+        if (m->iobox) {
+            m->cd_volume_ctl->vd[0].access &= ~SNDRV_CTL_ELEM_ACCESS_INACTIVE;
+            m->cd_switch_ctl->vd[0].access &= ~SNDRV_CTL_ELEM_ACCESS_INACTIVE;
         } else {
-            cco->cd_volume_ctl->vd[0].access |= SNDRV_CTL_ELEM_ACCESS_INACTIVE;
-            cco->cd_switch_ctl->vd[0].access |= SNDRV_CTL_ELEM_ACCESS_INACTIVE;
+            m->cd_volume_ctl->vd[0].access |= SNDRV_CTL_ELEM_ACCESS_INACTIVE;
+            m->cd_switch_ctl->vd[0].access |= SNDRV_CTL_ELEM_ACCESS_INACTIVE;
         }
 
         snd_ctl_notify(cco->card, SNDRV_CTL_EVENT_MASK_INFO,
-                       &cco->cd_volume_ctl->id);
+                       &m->cd_volume_ctl->id);
         snd_ctl_notify(cco->card, SNDRV_CTL_EVENT_MASK_INFO,
-                       &cco->cd_switch_ctl->id);
+                       &m->cd_switch_ctl->id);
     }
 
     return changed;
