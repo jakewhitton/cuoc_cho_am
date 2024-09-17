@@ -29,7 +29,7 @@ void cco_unregister_driver(void);
 
 // Device management
 int cco_register_device(void);
-void cco_unregister_device(struct cco_device *cco);
+void cco_unregister_device(int id);
 void cco_unregister_devices(void);
 
 #endif

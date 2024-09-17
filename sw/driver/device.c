@@ -177,19 +177,28 @@ exit_error:
     return err;
 }
 
-void cco_unregister_device(struct cco_device *cco)
+void cco_unregister_device(int id)
 {
+    if (id < 0 || id > ARRAY_SIZE(devices))
+        return;
+
+    struct cco_device *cco = devices[id];
+    if (!cco)
+        return;
+
     if (cco->card)
         snd_card_disconnect(cco->card);
+
     platform_device_unregister(&cco->pdev);
+
+    devices[id] = NULL;
 }
 
 void cco_unregister_devices(void)
 {
     for (int id = 0; id < SNDRV_CARDS; ++id) {
-        struct cco_device *cco = devices[id];
-        if (cco)
-            cco_unregister_device(cco);
+        if (devices[id])
+            cco_unregister_device(id);
     }
 }
 /*============================================================================*/
