@@ -18,9 +18,9 @@ static int __init kmod_init(void)
 
     // Create a single device upon module loading
     //
-    // Note: once ethernet communication with the FPGA is implemented, we will defer
-    // device creation to the point at which handshake over ethernet is successfully
-    // completed.
+    // Note: once ethernet communication with the FPGA is implemented, we will
+    // defer device creation to the point at which handshake over ethernet is
+    // successfully completed.
     //
     err = cco_register_device();
     if (err < 0)
