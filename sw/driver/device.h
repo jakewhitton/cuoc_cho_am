@@ -13,6 +13,7 @@ struct cco_device {
     struct platform_device pdev;
     struct snd_card *card;
     struct cco_mixer mixer;
+    void *page[2];
 };
 
 #define pdev_to_cco(pdev) container_of((pdev), struct cco_device, pdev)

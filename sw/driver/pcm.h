@@ -3,9 +3,6 @@
 
 #include "device.h"
 
-int alloc_fake_buffer(void);
-void free_fake_buffer(void);
-
 int cco_pcm_init(struct cco_device *cco);
 
 #endif

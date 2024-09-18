@@ -10,8 +10,6 @@
 // Full definition is in "PCM interface" section
 static const struct snd_pcm_ops cco_pcm_ops;
 
-static void *page[2];
-
 int cco_pcm_init(struct cco_device *cco)
 {
     int err;
@@ -45,36 +43,6 @@ int cco_pcm_init(struct cco_device *cco)
 exit_error:
     CCO_LOG_FUNCTION_FAILURE(err);
     return err;
-}
-
-int alloc_fake_buffer(void)
-{
-    int err;
-
-    for (int i = 0; i < ARRAY_SIZE(page); i++) {
-        page[i] = (void *)get_zeroed_page(GFP_KERNEL);
-        if (!page[i]) {
-            err = -ENOMEM;
-            goto undo_alloc;
-        }
-    }
-
-    return 0;
-
-undo_alloc:
-    free_fake_buffer();
-    CCO_LOG_FUNCTION_FAILURE(err);
-    return err;
-}
-
-void free_fake_buffer(void)
-{
-    for (int i = 0; i < ARRAY_SIZE(page); i++) {
-        if (page[i]) {
-            free_page((unsigned long)page[i]);
-            page[i] = NULL;
-        }
-    }
 }
 /*============================================================================*/
 
@@ -258,7 +226,8 @@ static int cco_pcm_copy(struct snd_pcm_substream *substream,
 static struct page *cco_pcm_page(struct snd_pcm_substream *substream,
                                  unsigned long offset)
 {
-    return virt_to_page(page[substream->stream]); /* the same page */
+    struct cco_device *cco = substream->private_data;
+    return virt_to_page(cco->page[substream->stream]); /* the same page */
 }
 
 static const struct snd_pcm_ops cco_pcm_ops = {
