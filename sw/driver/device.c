@@ -9,19 +9,8 @@
 #define CCO_DRIVER    "cco"
 
 /*==============================Driver management=============================*/
-static int cco_probe(struct platform_device *pdev);
-static int cco_suspend(struct device *dev);
-static int cco_resume(struct device *dev);
-
-static DEFINE_SIMPLE_DEV_PM_OPS(cco_pm, cco_suspend, cco_resume);
-
-static struct platform_driver cco_driver = {
-    .probe  = cco_probe,
-    .driver = {
-        .name = CCO_DRIVER,
-        .pm   = &cco_pm,
-    },
-};
+// Full definition is at the bottom of "Driver management" section
+static struct platform_driver cco_driver;
 
 int cco_register_driver(void)
 {
@@ -116,6 +105,16 @@ static int cco_resume(struct device *dev)
     snd_power_change_state(cco->card, SNDRV_CTL_POWER_D0);
     return 0;
 }
+
+static DEFINE_SIMPLE_DEV_PM_OPS(cco_pm, cco_suspend, cco_resume);
+
+static struct platform_driver cco_driver = {
+    .probe  = cco_probe,
+    .driver = {
+        .name = CCO_DRIVER,
+        .pm   = &cco_pm,
+    },
+};
 /*============================================================================*/
 
 
