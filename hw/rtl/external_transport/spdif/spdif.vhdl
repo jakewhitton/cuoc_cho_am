@@ -172,6 +172,15 @@ package spdif is
         );
     end component;
 
+    -- Transmit and receive S/PDIF data
+    component spdif_trx is
+        port (
+            i_clk   : in  std_logic;
+            i_spdif : in  std_logic;
+            o_spdif : out std_logic
+        );
+    end component;
+
     -- Spoof a stream of S/PDIF data
     component spdif_tx_spoof is
         port (

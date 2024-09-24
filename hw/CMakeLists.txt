@@ -29,6 +29,7 @@ set(RTL_SRC
     ${RTL_DIR}/external_transport/spdif/spdif_rx.vhdl
     ${RTL_DIR}/external_transport/spdif/spdif_rx_serial_bridge.vhdl
     ${RTL_DIR}/external_transport/spdif/spdif_tx.vhdl
+    ${RTL_DIR}/external_transport/spdif/spdif_trx.vhdl
     #${RTL_DIR}/external_transport/spdif/spdif_loopback.vhdl
     #${RTL_DIR}/external_transport/spdif/spdif_tx_spoof.vhdl
 

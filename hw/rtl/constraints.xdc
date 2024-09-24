@@ -2,10 +2,8 @@
 set_property -dict {PACKAGE_PIN E3 IOSTANDARD LVCMOS33} [get_ports {i_clk}];
 create_clock -name clk -period 10 [get_ports {i_clk}];
 
-# S/PDIF in
+# S/PDIF
 set_property -dict {PACKAGE_PIN D14 IOSTANDARD LVCMOS33} [get_ports {i_spdif}];
-
-# S/PDIF out
 set_property -dict {PACKAGE_PIN C17 IOSTANDARD LVCMOS33} [get_ports {o_spdif}];
 
 # LEDs
