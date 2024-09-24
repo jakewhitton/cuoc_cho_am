@@ -89,9 +89,9 @@ dict for {library library_sources} $libraries {
         switch [file extension $source] {
             ".vhdl" {
                 if {$library eq ""} {
-                    read_vhdl $source
+                    read_vhdl -vhdl2019 $source
                 } else {
-                    read_vhdl -library $library $source
+                    read_vhdl -vhdl2019 -library $library $source
                 }
             }
             ".xci" {
