@@ -23,8 +23,9 @@ begin
     -- Ethernet transport
     ethernet_trx : sw_transport.ethernet.ethernet_trx
         port map (
-            i_clk => i_clk,
-            phy   => ethernet_phy
+            i_clk  => i_clk,
+            phy    => ethernet_phy,
+            o_leds => o_leds
         );
 
     -- S/PDIF transport
