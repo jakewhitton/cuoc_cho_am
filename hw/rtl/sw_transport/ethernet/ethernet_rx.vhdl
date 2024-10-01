@@ -1,6 +1,5 @@
 library ieee;
     use ieee.std_logic_1164.all;
-    use ieee.numeric_std.all;
 
 library work;
     use work.ethernet.all;
@@ -9,7 +8,9 @@ entity ethernet_rx is
     port (
         i_ref_clk : in   std_logic;
         phy       : view EthernetPhy_t;
-        o_leds    : out  std_logic_vector(15 downto 0);
+        o_packet  : out  EthernetPacket_t;
+        o_size    : out  natural;
+        o_valid   : out  std_logic;
     );
 end ethernet_rx;
 
@@ -24,9 +25,12 @@ architecture behavioral of ethernet_rx is
         START_FRAME_DELIMITER,     -- Receive full SFD      (1 byte)
         PAYLOAD                    -- Receive full payload  (n bytes)
     );
-    signal state       : State_t := WAIT_FOR_CARRIER_ABSENCE;
-    signal dibit       : natural := 0; -- Dibit offset into frame section
-    signal num_packets : natural := 0; -- Counts number of packets recv'd
+    signal state : State_t := WAIT_FOR_CARRIER_ABSENCE;
+    signal dibit : natural := 0;
+
+    -- Intermediate signals
+    signal size  : natural   := 0;
+    signal valid : std_logic := '0';
 
 begin
 
@@ -36,9 +40,7 @@ begin
     recv_sm : process(i_ref_clk)
     begin
         if rising_edge(i_ref_clk) then
-
             case state is
-
                 when WAIT_FOR_CARRIER_ABSENCE =>
                     -- Wait for CRS_DV to go low, then transit
                     if phy.crs_dv = '0' then
@@ -96,21 +98,53 @@ begin
                     elsif dibit < SFD_LAST_DIBIT then
                         dibit <= dibit + 1;
                     else
-                        dibit <= 0;
-                        state <= PAYLOAD;
+                        dibit    <= 0;
+                        o_packet <= (others => '0');
+                        size     <= 0;
+                        valid    <= '0';
+                        state    <= PAYLOAD;
                     end if;
 
                 when PAYLOAD =>
-                    -- Wait for carrier to end, then transit
-                    if phy.crs_dv = '0' then
-                        num_packets <= num_packets + 1;
+                    -- If data is still being presented, receive it
+                    if phy.crs_dv = '1' then
+
+                        -- Note: although ethernet transmits bytes in the order
+                        -- in which they appear in the packet, each individual
+                        -- byte is transmitted from lsb -> msb.
+                        --
+                        -- To compute the location in the packet where this
+                        -- dibit should be placed, we start with an offset that
+                        -- points at the beginning of the byte after the one
+                        -- currently being received.
+                        --
+                        -- Then, we count backwards for however many dibits
+                        -- have been received in the current byte.
+                        --
+                        o_packet(
+                            (size + 1) * BITS_PER_BYTE -
+                                (dibit + 1) * BITS_PER_DIBIT
+                        to
+                            (size + 1) * BITS_PER_BYTE -
+                                (dibit + 1) * BITS_PER_DIBIT + 1
+                        ) <= phy.rxd;
+
+                        if dibit + 1 < DIBITS_PER_BYTE then
+                            dibit <= dibit + 1;
+                        else
+                            size <= size + 1;
+                            dibit <= 0;
+                        end if;
+
+                    -- Otherwise, mark packet as ready, then transit
+                    else
+                        valid <= '1';
                         state <= WAIT_FOR_CARRIER_PRESENCE;
                     end if;
             end case;
-
         end if;
-
     end process;
-    o_leds <= std_logic_vector(to_unsigned(num_packets, 16));
+    o_size <= size;
+    o_valid <= valid;
 
 end behavioral;

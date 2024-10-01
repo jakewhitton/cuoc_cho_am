@@ -17,6 +17,15 @@ architecture behavioral of ethernet_trx is
     -- 50MHz reference clk that drives ethernet PHY
     signal ref_clk : std_logic := '0';
 
+    -- Intermediate signals for ethernet_rx
+    signal rx_packet : EthernetPacket_t := (others => '0');
+    signal rx_size   : natural          := 0;
+    signal rx_valid  : std_logic        := '0';
+
+    -- Captured packets, latched from ethernet_rx
+    signal packet : EthernetPacket_t := (others => '0');
+    signal size   : natural          := 0;
+
 begin
 
     -- Derives 50MHz clk from 100MHz clk for feeding into PHY
@@ -33,7 +42,23 @@ begin
         port map (
             i_ref_clk => ref_clk,
             phy       => phy,
-            o_leds    => o_leds
+            o_packet  => rx_packet,
+            o_size    => rx_size,
+            o_valid   => rx_valid
         );
+
+    -- Latch any packets that are presented by ethernet_rx
+    capture_packets : process(rx_valid)
+    begin
+        if rising_edge(rx_valid) then
+            packet <= rx_packet;
+            size <= rx_size;
+        end if;
+    end process;
+
+    -- Show captured packets to user
+    show_packets : for i in o_leds'range generate
+        o_leds(15-i) <= packet(i);
+    end generate;
 
 end behavioral;
