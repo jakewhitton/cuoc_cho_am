@@ -8,8 +8,8 @@ set_property -dict {PACKAGE_PIN C17 IOSTANDARD LVCMOS33} [get_ports {o_spdif}];
 
 # Ethernet PHY
 set_property -dict {PACKAGE_PIN D5  IOSTANDARD LVCMOS33} [get_ports {ethernet_phy[clkin]}];
-set_property -dict {PACKAGE_PIN D10 IOSTANDARD LVCMOS33} [get_ports {ethernet_phy[rxd][0]}];
-set_property -dict {PACKAGE_PIN C11 IOSTANDARD LVCMOS33} [get_ports {ethernet_phy[rxd][1]}];
+set_property -dict {PACKAGE_PIN C11 IOSTANDARD LVCMOS33} [get_ports {ethernet_phy[rxd][0]}];
+set_property -dict {PACKAGE_PIN D10 IOSTANDARD LVCMOS33} [get_ports {ethernet_phy[rxd][1]}];
 set_property -dict {PACKAGE_PIN D9  IOSTANDARD LVCMOS33} [get_ports {ethernet_phy[crs_dv]}];
 
 # LEDs
