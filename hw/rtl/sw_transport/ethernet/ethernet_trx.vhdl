@@ -61,4 +61,14 @@ begin
         o_leds(15-i) <= packet(i);
     end generate;
 
+    -- Ethernet transmitting (loopback of data from ethernet_rx)
+    ethernet_tx : work.ethernet.ethernet_tx
+        port map (
+            i_ref_clk => ref_clk,
+            phy       => phy,
+            i_packet  => rx_packet,
+            i_size    => rx_size,
+            i_valid   => rx_valid
+        );
+
 end behavioral;

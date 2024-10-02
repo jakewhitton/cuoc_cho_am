@@ -11,6 +11,9 @@ set_property -dict {PACKAGE_PIN D5  IOSTANDARD LVCMOS33} [get_ports {ethernet_ph
 set_property -dict {PACKAGE_PIN C11 IOSTANDARD LVCMOS33} [get_ports {ethernet_phy[rxd][0]}];
 set_property -dict {PACKAGE_PIN D10 IOSTANDARD LVCMOS33} [get_ports {ethernet_phy[rxd][1]}];
 set_property -dict {PACKAGE_PIN D9  IOSTANDARD LVCMOS33} [get_ports {ethernet_phy[crs_dv]}];
+set_property -dict {PACKAGE_PIN A10 IOSTANDARD LVCMOS33} [get_ports {ethernet_phy[txd][0]}];
+set_property -dict {PACKAGE_PIN A8  IOSTANDARD LVCMOS33} [get_ports {ethernet_phy[txd][1]}];
+set_property -dict {PACKAGE_PIN B9  IOSTANDARD LVCMOS33} [get_ports {ethernet_phy[tx_en]}];
 
 # LEDs
 set_property -dict {PACKAGE_PIN H17 IOSTANDARD LVCMOS33} [get_ports {o_leds[0]}];
