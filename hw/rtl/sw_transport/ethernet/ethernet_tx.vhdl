@@ -33,6 +33,10 @@ architecture behavioral of ethernet_tx is
     signal dibit      : natural := 0;
     signal bytes_sent : natural := 0;
 
+    -- Intermediate signals
+    signal txd   : std_logic_vector(1 downto 0) := (others => '0');
+    signal tx_en : std_logic                    := '0';
+
 begin
 
     -- Transmit state machine
@@ -53,8 +57,8 @@ begin
 
                 when PREAMBLE =>
 
-                    phy.txd <= VALID_PREAMBLE_DIBIT;
-                    phy.tx_en <= '1';
+                    txd <= VALID_PREAMBLE_DIBIT;
+                    tx_en <= '1';
 
                     -- Wait for last preamble dibit, then transit
                     if dibit < PREAMBLE_LAST_DIBIT then
@@ -66,10 +70,10 @@ begin
 
                 when START_FRAME_DELIMITER =>
 
-                    phy.txd <= VALID_SFD_DIBIT_REST
+                    txd <= VALID_SFD_DIBIT_REST
                                when dibit < SFD_LAST_DIBIT
                                else VALID_SFD_DIBIT_LAST;
-                    phy.tx_en <= '1';
+                    tx_en <= '1';
 
                     -- Wait for last SFD dibit, then transit
                     if dibit < SFD_LAST_DIBIT then
@@ -77,7 +81,7 @@ begin
                     else
                         dibit <= 0;
                         bytes_sent <= 0;
-                        state <= START_FRAME_DELIMITER;
+                        state <= PAYLOAD;
                     end if;
 
                 when PAYLOAD =>
@@ -97,14 +101,14 @@ begin
                         -- Then, we count backwards for however many dibits
                         -- have been transmitted in the current byte.
                         --
-                        phy.txd <= packet(
+                        txd <= packet(
                             (bytes_sent + 1) * BITS_PER_BYTE -
                                 (dibit + 1) * BITS_PER_DIBIT
                         to
                             (bytes_sent + 1) * BITS_PER_BYTE -
                                 (dibit + 1) * BITS_PER_DIBIT + 1
                         );
-                        phy.tx_en <= '1';
+                        tx_en <= '1';
 
                         if dibit + 1 < DIBITS_PER_BYTE then
                             dibit <= dibit + 1;
@@ -115,8 +119,8 @@ begin
 
                     -- Otherwise, end transmission, then transit
                     else
-                        phy.txd <= "00";
-                        phy.tx_en <= '0';
+                        txd <= "00";
+                        tx_en <= '0';
                         dibit <= 0;
                         state <= INTER_PACKET_GAP;
                     end if;
@@ -134,5 +138,7 @@ begin
             prev_i_valid <= i_valid;
         end if;
     end process;
+    phy.txd <= txd;
+    phy.tx_en <= tx_en;
 
 end behavioral;
