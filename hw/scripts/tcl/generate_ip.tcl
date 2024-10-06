@@ -57,6 +57,7 @@ proc get_ip_config {ip} {
                 CONFIG.PRIMITIVE                  {PLL}       \
                 CONFIG.USE_LOCKED                 {false}     \
                 CONFIG.USE_RESET                  {false}     \
+                CONFIG.PRIM_SOURCE                {No_buffer} \
             ]
         }
 

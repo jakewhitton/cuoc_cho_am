@@ -29,11 +29,11 @@ begin
         );
 
     -- S/PDIF transport
-    --spdif_trx : external_transport.spdif.spdif_trx
-    --    port map (
-    --        i_clk   => i_clk,
-    --        i_spdif => i_spdif,
-    --        o_spdif => o_spdif
-    --    );
+    spdif_trx : external_transport.spdif.spdif_trx
+        port map (
+            i_clk   => i_clk,
+            i_spdif => i_spdif,
+            o_spdif => o_spdif
+        );
 
 end structure;
