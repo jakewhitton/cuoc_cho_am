@@ -56,6 +56,7 @@ set(RTL_SRC
 # `get_ip_config` in generate_ip.tcl
 set(IP_MODULES
     ip_clk_wizard_spdif
+    ip_clk_wizard_ethernet
 )
 
 # Constraint sources
