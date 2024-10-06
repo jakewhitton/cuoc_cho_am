@@ -51,7 +51,7 @@ set(RTL_SRC
 # When an entry is added here, you must provide an IP configuration by modifying
 # `get_ip_config` in generate_ip.tcl
 set(IP_MODULES
-    pll
+    ip_clk_wizard_spdif
 )
 
 # Constraint sources

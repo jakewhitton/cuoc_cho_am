@@ -19,16 +19,12 @@ architecture behavioral of spdif_trx is
     --signal sample  : std_logic_vector(23 downto 0) := (others => '0');
     --signal sclk    : std_logic                     := '0';
 
-    signal spdif_tx_clk      : std_logic  := '0';
-    signal pll_reset         : std_logic  := '0';
-    signal pll_locked        : std_logic  := '0';
+    signal spdif_tx_clk : std_logic  := '0';
 
-    component pll
+    component ip_clk_wizard_spdif
         port (
-            o_spdif_tx_clk : out    std_logic;
-            reset          : in     std_logic;
-            locked         : out    std_logic;
-            i_clk          : in     std_logic
+            i_spdif_clk : in  std_logic;
+            o_spdif_clk : out std_logic;
         );
     end component;
 
@@ -55,12 +51,10 @@ begin
     --        o_sclk    => sclk
     --    );
 
-    generate_spdif_tx_clk : pll
+    generate_spdif_tx_clk : ip_clk_wizard_spdif
         port map (
-            o_spdif_tx_clk => spdif_tx_clk,
-            reset          => pll_reset,
-            locked         => pll_locked,
-            i_clk          => i_clk
+            i_spdif_clk => i_clk,
+            o_spdif_clk => spdif_tx_clk
         );
 
     -- Channel bit setting
