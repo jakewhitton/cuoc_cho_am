@@ -26,15 +26,21 @@ architecture behavioral of ethernet_trx is
     signal packet : EthernetPacket_t := (others => '0');
     signal size   : natural          := 0;
 
+    component ip_clk_wizard_ethernet is
+        port (
+            i_eth_clk : in  std_logic;
+            o_eth_clk : out std_logic;
+        );
+    end component;
+
 begin
 
     -- Derives 50MHz clk from 100MHz clk for feeding into PHY
-    generate_50mhz_ref_clk : process(i_clk)
-    begin
-        if rising_edge(i_clk) then
-            ref_clk <= not ref_clk;
-        end if;
-    end process;
+    generate_50mhz_ref_clk : ip_clk_wizard_ethernet
+        port map (
+            i_eth_clk => i_clk,
+            o_eth_clk => ref_clk
+        );
     phy.clkin <= ref_clk;
 
     -- Ethernet receiving
