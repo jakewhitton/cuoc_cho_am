@@ -57,9 +57,9 @@ begin
     end process;
 
     -- Show captured packets to user
-    show_packets : for i in o_leds'range generate
-        o_leds(15-i) <= packet(i);
-    end generate;
+    --show_packets : for i in o_leds'range generate
+    --    o_leds(15-i) <= packet(i);
+    --end generate;
 
     -- Ethernet transmitting (loopback of data from ethernet_rx)
     ethernet_tx : work.ethernet.ethernet_tx
@@ -68,7 +68,8 @@ begin
             phy       => phy,
             i_packet  => rx_packet,
             i_size    => rx_size,
-            i_valid   => rx_valid
+            i_valid   => rx_valid,
+            o_leds    => o_leds
         );
 
 end behavioral;

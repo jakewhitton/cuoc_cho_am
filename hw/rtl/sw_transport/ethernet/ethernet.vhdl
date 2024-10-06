@@ -62,6 +62,7 @@ package ethernet is
             i_packet  : in   EthernetPacket_t;
             i_size    : in   natural;
             i_valid   : in   std_logic;
+            o_leds    : out  std_logic_vector(15 downto 0);
         );
     end component;
 

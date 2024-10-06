@@ -1,5 +1,6 @@
 library ieee;
     use ieee.std_logic_1164.all;
+    use ieee.numeric_std.all;
 
 library work;
     use work.ethernet.all;
@@ -11,6 +12,7 @@ entity ethernet_tx is
         i_packet  : in   EthernetPacket_t;
         i_size    : in   natural;
         i_valid   : in   std_logic;
+        o_leds    : out  std_logic_vector(15 downto 0);
     );
 end ethernet_tx;
 
@@ -36,6 +38,8 @@ architecture behavioral of ethernet_tx is
     -- Intermediate signals
     signal txd   : std_logic_vector(1 downto 0) := (others => '0');
     signal tx_en : std_logic                    := '0';
+
+    signal packets_sent : natural := 0;
 
 begin
 
@@ -133,6 +137,7 @@ begin
                     else
                         dibit <= 0;
                         state <= WAIT_FOR_DATA;
+                        packets_sent <= packets_sent + 1;
                     end if;
             end case;
             prev_i_valid <= i_valid;
@@ -140,5 +145,7 @@ begin
     end process;
     phy.txd <= txd;
     phy.tx_en <= tx_en;
+
+    o_leds(0 downto 0) <= std_logic_vector(to_unsigned(packets_sent, 1));
 
 end behavioral;
