@@ -19,6 +19,7 @@ architecture behavioral of ethernet_trx is
 
     -- Intermediate signals for ethernet_rx
     signal rx_packet : EthernetPacket_t := (others => '0');
+    signal rx_fcs    : EthernetFCS_t    := (others => '0');
     signal rx_size   : natural          := 0;
     signal rx_valid  : std_logic        := '0';
 
@@ -46,6 +47,7 @@ begin
             phy       => phy,
             o_packet  => rx_packet,
             o_size    => rx_size,
+            o_fcs     => rx_fcs,
             o_valid   => rx_valid
         );
 
@@ -56,6 +58,7 @@ begin
             phy       => phy,
             i_packet  => rx_packet,
             i_size    => rx_size,
+            i_fcs     => rx_fcs,
             i_valid   => rx_valid
         );
 

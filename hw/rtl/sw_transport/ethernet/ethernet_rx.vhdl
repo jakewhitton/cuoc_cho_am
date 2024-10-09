@@ -10,6 +10,7 @@ entity ethernet_rx is
         phy       : view EthernetPhy_t;
         o_packet  : out  EthernetPacket_t;
         o_size    : out  natural;
+        o_fcs     : out  EthernetFCS_t;
         o_valid   : out  std_logic;
     );
 end ethernet_rx;
@@ -23,7 +24,9 @@ architecture behavioral of ethernet_rx is
         WAIT_FOR_PREAMBLE,         -- Wait for preamble to start
         PREAMBLE,                  -- Receive full preamble (7 bytes)
         START_FRAME_DELIMITER,     -- Receive full SFD      (1 byte)
-        PAYLOAD                    -- Receive full payload  (n bytes)
+        PAYLOAD,                   -- Receive full payload  (n bytes)
+        EXTRACT_FCS,               -- Pull out FCS from payload
+        PUBLISH_PACKET             -- Publish packet
     );
     signal state : State_t := WAIT_FOR_CARRIER_ABSENCE;
     signal dibit : natural := 0;
@@ -100,6 +103,7 @@ begin
                     else
                         dibit    <= 0;
                         o_packet <= (others => '0');
+                        o_fcs    <= (others => '0');
                         size     <= 0;
                         valid    <= '0';
                         state    <= PAYLOAD;
@@ -136,11 +140,35 @@ begin
                             dibit <= 0;
                         end if;
 
-                    -- Otherwise, mark packet as ready, then transit
+                    -- Otherwise, transit
                     else
-                        valid <= '1';
-                        state <= WAIT_FOR_CARRIER_PRESENCE;
+                        state <= EXTRACT_FCS;
                     end if;
+
+                when EXTRACT_FCS =>
+                    -- Restore transmission order for FCS
+                    for byte in 0 to 3 loop
+                        for i in 0 to 7 loop
+                            o_fcs(31 - (byte*BITS_PER_BYTE + i)) <= o_packet(
+                                (size-4)*BITS_PER_BYTE +
+                                (byte + 1)*BITS_PER_BYTE - (i + 1)
+                            );
+                        end loop;
+                    end loop;
+
+                    -- Remove FCS from packet
+                    o_packet(
+                        (size - 4)*BITS_PER_BYTE to
+                        size*BITS_PER_BYTE - 1
+                    ) <= (others => '0');
+                    size <= size - 4;
+
+                    -- Transit
+                    state <= PUBLISH_PACKET;
+
+                when PUBLISH_PACKET =>
+                    valid <= '1';
+                    state <= WAIT_FOR_CARRIER_PRESENCE;
             end case;
         end if;
     end process;

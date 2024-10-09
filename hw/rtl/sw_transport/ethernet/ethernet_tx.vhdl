@@ -10,6 +10,7 @@ entity ethernet_tx is
         phy       : view EthernetPhy_t;
         i_packet  : in   EthernetPacket_t;
         i_size    : in   natural;
+        i_fcs     : in   EthernetFCS_t;
         i_valid   : in   std_logic;
     );
 end ethernet_tx;
@@ -20,6 +21,7 @@ architecture behavioral of ethernet_tx is
     signal prev_i_valid : std_logic        := '0';
     signal packet       : EthernetPacket_t := (others => '0');
     signal size         : natural          := 0;
+    signal fcs          : EthernetFCS_t    := (others => '0');
 
     -- Transmit state
     type State_t is (
@@ -27,6 +29,7 @@ architecture behavioral of ethernet_tx is
         PREAMBLE,              -- Transmit full preamble (7 bytes)
         START_FRAME_DELIMITER, -- Transmit full SFD      (1 byte)
         PAYLOAD,               -- Transmit full payload  (n bytes)
+        FRAME_CHECK_SEQUENCE,  -- Transmit full FCS      (4 bytes)
         INTER_PACKET_GAP       -- Idle period before transmitting again
     );
     signal state      : State_t := WAIT_FOR_DATA;
@@ -51,6 +54,7 @@ begin
                     if prev_i_valid = '0' and i_valid = '1' then
                         packet <= i_packet;
                         size <= i_size;
+                        fcs <= i_fcs;
                         dibit <= 0;
                         state <= PREAMBLE;
                     end if;
@@ -86,46 +90,53 @@ begin
 
                 when PAYLOAD =>
 
-                    -- If there is data left in packet, transmit it
-                    if bytes_sent < size then
+                    -- Note: although ethernet transmits bytes in the order
+                    -- in which they appear in the packet, each individual
+                    -- byte is transmitted from lsb -> msb.
+                    --
+                    -- To compute the location in the packet where this
+                    -- dibit should be placed, we start with an offset that
+                    -- points at the beginning of the byte after the one
+                    -- currently being transmitted.
+                    --
+                    -- Then, we count backwards for however many dibits
+                    -- have been transmitted in the current byte.
+                    --
+                    txd <= packet(
+                        ((dibit / DIBITS_PER_BYTE) + 1) * BITS_PER_BYTE -
+                        ((dibit mod DIBITS_PER_BYTE) + 1) * BITS_PER_DIBIT
+                    to
+                        ((dibit / DIBITS_PER_BYTE) + 1) * BITS_PER_BYTE -
+                        ((dibit mod DIBITS_PER_BYTE) + 1) * BITS_PER_DIBIT + 1
+                    );
+                    tx_en <= '1';
 
-                        -- Note: although ethernet transmits bytes in the order
-                        -- in which they appear in the packet, each individual
-                        -- byte is transmitted from lsb -> msb.
-                        --
-                        -- To compute the location in the packet where this
-                        -- dibit should be placed, we start with an offset that
-                        -- points at the beginning of the byte after the one
-                        -- currently being transmitted.
-                        --
-                        -- Then, we count backwards for however many dibits
-                        -- have been transmitted in the current byte.
-                        --
-                        txd <= packet(
-                            (bytes_sent + 1) * BITS_PER_BYTE -
-                                (dibit + 1) * BITS_PER_DIBIT
-                        to
-                            (bytes_sent + 1) * BITS_PER_BYTE -
-                                (dibit + 1) * BITS_PER_DIBIT + 1
-                        );
-                        tx_en <= '1';
-
-                        if dibit + 1 < DIBITS_PER_BYTE then
-                            dibit <= dibit + 1;
-                        else
-                            bytes_sent <= bytes_sent + 1;
-                            dibit <= 0;
-                        end if;
-
-                    -- Otherwise, end transmission, then transit
+                    -- Wait for last payload bit, then transit
+                    if dibit + 1 < size * DIBITS_PER_BYTE then
+                        dibit <= dibit + 1;
                     else
-                        txd <= "00";
-                        tx_en <= '0';
+                        dibit <= 0;
+                        state <= FRAME_CHECK_SEQUENCE;
+                    end if;
+
+                when FRAME_CHECK_SEQUENCE =>
+
+                    txd(0) <= fcs(31 - dibit*BITS_PER_DIBIT);
+                    txd(1) <= fcs(30 - dibit*BITS_PER_DIBIT);
+                    tx_en <= '1';
+
+                    -- Wait for last FCS dibit, end transmission, then transit
+                    if dibit < FCS_LAST_DIBIT then
+                        dibit <= dibit + 1;
+                    else
                         dibit <= 0;
                         state <= INTER_PACKET_GAP;
                     end if;
 
                 when INTER_PACKET_GAP =>
+
+                    txd <= "00";
+                    tx_en <= '0';
 
                     -- Wait for last IPG dibit, then transit
                     if dibit < IPG_LAST_DIBIT then

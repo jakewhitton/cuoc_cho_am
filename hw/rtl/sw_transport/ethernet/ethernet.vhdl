@@ -28,6 +28,7 @@ package ethernet is
     constant BITS_PER_BYTE       : natural := DIBITS_PER_BYTE * BITS_PER_DIBIT;
     constant PREAMBLE_LAST_DIBIT : natural := (7 * DIBITS_PER_BYTE) - 1;
     constant SFD_LAST_DIBIT      : natural := (1 * DIBITS_PER_BYTE) - 1;
+    constant FCS_LAST_DIBIT      : natural := (4 * DIBITS_PER_BYTE) - 1;
     constant IPG_LAST_DIBIT      : natural := 96 / BITS_PER_DIBIT;
 
     constant VALID_PREAMBLE_DIBIT : std_logic_vector(1 downto 0) := "01";
@@ -36,6 +37,8 @@ package ethernet is
 
     constant MTU : natural := 1500;
     subtype EthernetPacket_t is std_logic_vector(0 to (MTU * BITS_PER_BYTE) - 1);
+
+    subtype EthernetFCS_t is std_logic_vector(31 downto 0);
 
     component ethernet_trx is
         port (
@@ -51,6 +54,7 @@ package ethernet is
             phy       : view EthernetPhy_t;
             o_packet  : out  EthernetPacket_t;
             o_size    : out  natural;
+            o_fcs     : out  EthernetFCS_t;
             o_valid   : out  std_logic;
         );
     end component;
@@ -61,6 +65,7 @@ package ethernet is
             phy       : view EthernetPhy_t;
             i_packet  : in   EthernetPacket_t;
             i_size    : in   natural;
+            i_fcs     : in   EthernetFCS_t;
             i_valid   : in   std_logic;
         );
     end component;
