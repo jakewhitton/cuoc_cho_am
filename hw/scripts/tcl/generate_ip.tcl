@@ -30,6 +30,37 @@ proc get_ip_config {ip} {
             ]
         }
 
+        ip_clk_wizard_ethernet {
+            # Xilinx clock wizard for generating ethernet PHY reference clk
+            dict set config "name"    "clk_wiz"
+            dict set config "vendor"  "xilinx.com"
+            dict set config "library" "ip"
+            dict set config "version" "6.0"
+            dict set config "props" [dict create              \
+                CONFIG.CLKOUT1_DRIVES             {BUFG}      \
+                CONFIG.CLKOUT1_JITTER             {203.457}   \
+                CONFIG.CLKOUT1_PHASE_ERROR        {155.540}   \
+                CONFIG.CLKOUT1_REQUESTED_OUT_FREQ {50}        \
+                CONFIG.CLKOUT2_DRIVES             {BUFG}      \
+                CONFIG.CLKOUT3_DRIVES             {BUFG}      \
+                CONFIG.CLKOUT4_DRIVES             {BUFG}      \
+                CONFIG.CLKOUT5_DRIVES             {BUFG}      \
+                CONFIG.CLKOUT6_DRIVES             {BUFG}      \
+                CONFIG.CLKOUT7_DRIVES             {BUFG}      \
+                CONFIG.CLK_OUT1_PORT              {o_eth_clk} \
+                CONFIG.MMCM_BANDWIDTH             {OPTIMIZED} \
+                CONFIG.MMCM_CLKFBOUT_MULT_F       {17}        \
+                CONFIG.MMCM_CLKOUT0_DIVIDE_F      {17}        \
+                CONFIG.MMCM_COMPENSATION          {ZHOLD}     \
+                CONFIG.MMCM_DIVCLK_DIVIDE         {2}         \
+                CONFIG.PRIMARY_PORT               {i_eth_clk} \
+                CONFIG.PRIMITIVE                  {PLL}       \
+                CONFIG.USE_LOCKED                 {false}     \
+                CONFIG.USE_RESET                  {false}     \
+                CONFIG.PRIM_SOURCE                {No_buffer} \
+            ]
+        }
+
         default {
             exit_with_code "unknown IP: \"${ip}\""
         }
