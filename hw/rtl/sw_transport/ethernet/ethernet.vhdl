@@ -70,4 +70,14 @@ package ethernet is
         );
     end component;
 
+    component fcs_calculator is
+        port (
+            i_crc   : in  EthernetFCS_t;
+            i_dibit : in  std_logic_vector(1 downto 0);
+            o_crc   : out EthernetFCS_t;
+            -- Post-complement of o_crc, required by FCS
+            o_fcs   : out EthernetFCS_t;
+        );
+    end component;
+
 end package ethernet;

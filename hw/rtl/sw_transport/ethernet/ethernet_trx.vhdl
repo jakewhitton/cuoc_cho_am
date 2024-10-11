@@ -19,8 +19,8 @@ architecture behavioral of ethernet_trx is
 
     -- Intermediate signals for ethernet_rx
     signal rx_packet : EthernetPacket_t := (others => '0');
-    signal rx_fcs    : EthernetFCS_t    := (others => '0');
     signal rx_size   : natural          := 0;
+    signal rx_fcs    : EthernetFCS_t    := (others => '0');
     signal rx_valid  : std_logic        := '0';
 
     component ip_clk_wizard_ethernet is

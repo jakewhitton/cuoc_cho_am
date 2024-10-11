@@ -24,16 +24,22 @@ architecture behavioral of ethernet_rx is
         WAIT_FOR_PREAMBLE,         -- Wait for preamble to start
         PREAMBLE,                  -- Receive full preamble (7 bytes)
         START_FRAME_DELIMITER,     -- Receive full SFD      (1 byte)
-        PAYLOAD,                   -- Receive full payload  (n bytes)
-        EXTRACT_FCS,               -- Pull out FCS from payload
-        PUBLISH_PACKET             -- Publish packet
+        FRAME                      -- Receive full frame    (n bytes)
     );
-    signal state : State_t := WAIT_FOR_CARRIER_ABSENCE;
-    signal dibit : natural := 0;
+    signal state    : State_t       := WAIT_FOR_CARRIER_ABSENCE;
+    signal dibit    : natural       := 0;
+    signal fcs_recv : EthernetFCS_t := (others => '0');
+
+    -- Intermediate signals for fcs_calculator
+    signal prev_crc  : EthernetFCS_t                := (others => '0');
+    signal crc_dibit : std_logic_vector(1 downto 0) := (others => '0');
+    signal crc       : EthernetFCS_t                := (others => '0');
+    signal fcs_calc  : EthernetFCS_t                := (others => '0');
 
     -- Intermediate signals
-    signal size  : natural   := 0;
-    signal valid : std_logic := '0';
+    signal packet   : EthernetPacket_t := (others => '0');
+    signal size     : natural          := 0;
+    signal valid    : std_logic        := '0';
 
 begin
 
@@ -41,6 +47,8 @@ begin
     --
     -- Note: i_ref_clk is the 50MHz clock that is fed into phy.clkin
     recv_sm : process(i_ref_clk)
+        variable byte : natural := 0;
+        variable rest : natural := 0;
     begin
         if rising_edge(i_ref_clk) then
             case state is
@@ -102,77 +110,70 @@ begin
                         dibit <= dibit + 1;
                     else
                         dibit    <= 0;
-                        o_packet <= (others => '0');
-                        o_fcs    <= (others => '0');
+                        packet   <= (others => '0');
                         size     <= 0;
+                        fcs_recv <= (others => '0');
                         valid    <= '0';
-                        state    <= PAYLOAD;
+                        state    <= frame;
                     end if;
 
-                when PAYLOAD =>
+                when FRAME =>
                     -- If data is still being presented, receive it
                     if phy.crs_dv = '1' then
 
-                        -- Note: although ethernet transmits bytes in the order
-                        -- in which they appear in the packet, each individual
-                        -- byte is transmitted from lsb -> msb.
-                        --
-                        -- To compute the location in the packet where this
-                        -- dibit should be placed, we start with an offset that
-                        -- points at the beginning of the byte after the one
-                        -- currently being received.
-                        --
-                        -- Then, we count backwards for however many dibits
-                        -- have been received in the current byte.
-                        --
-                        o_packet(
-                            (size + 1) * BITS_PER_BYTE -
-                                (dibit + 1) * BITS_PER_DIBIT
-                        to
-                            (size + 1) * BITS_PER_BYTE -
-                                (dibit + 1) * BITS_PER_DIBIT + 1
-                        ) <= phy.rxd;
+                        -- Shift dibits into fcs_recv, preserving transmit order
+                        fcs_recv(31 downto 2) <= fcs_recv(29 downto 0);
+                        fcs_recv(1)           <= phy.rxd(0);
+                        fcs_recv(0)           <= phy.rxd(1);
 
-                        if dibit + 1 < DIBITS_PER_BYTE then
-                            dibit <= dibit + 1;
-                        else
-                            size <= size + 1;
-                            dibit <= 0;
+                        -- Once fcs_recv has been filled, start spilling dibits
+                        -- over to packet, along with FCS calculation
+                        if dibit > FCS_LAST_DIBIT then
+
+                            byte := (dibit - 16) / DIBITS_PER_BYTE;
+                            rest := dibit mod DIBITS_PER_BYTE;
+
+                            -- Place dibit in packet
+                            packet(
+                                (byte + 1) * BITS_PER_BYTE -
+                                    (rest + 1) * BITS_PER_DIBIT
+                            ) <= fcs_recv(30);
+                            packet(
+                                (byte + 1) * BITS_PER_BYTE -
+                                    (rest + 1) * BITS_PER_DIBIT + 1
+                            ) <= fcs_recv(31);
+
+                            -- Update calculated FCS
+                            with dibit select prev_crc <=
+                                (others => '1') when FCS_LAST_DIBIT + 1,
+                                crc             when others;
+                            crc_dibit <= fcs_recv(31 downto 30);
                         end if;
 
-                    -- Otherwise, transit
+                        dibit <= dibit + 1;
+
+                    -- Otherwise, publish packet if CRC is valid, then transit
                     else
-                        state <= EXTRACT_FCS;
+                        if fcs_recv = fcs_calc then
+                            valid <= '1';
+                        end if;
+                        state <= WAIT_FOR_CARRIER_PRESENCE;
                     end if;
-
-                when EXTRACT_FCS =>
-                    -- Restore transmission order for FCS
-                    for byte in 0 to 3 loop
-                        for i in 0 to 7 loop
-                            o_fcs(31 - (byte*BITS_PER_BYTE + i)) <= o_packet(
-                                (size-4)*BITS_PER_BYTE +
-                                (byte + 1)*BITS_PER_BYTE - (i + 1)
-                            );
-                        end loop;
-                    end loop;
-
-                    -- Remove FCS from packet
-                    o_packet(
-                        (size - 4)*BITS_PER_BYTE to
-                        size*BITS_PER_BYTE - 1
-                    ) <= (others => '0');
-                    size <= size - 4;
-
-                    -- Transit
-                    state <= PUBLISH_PACKET;
-
-                when PUBLISH_PACKET =>
-                    valid <= '1';
-                    state <= WAIT_FOR_CARRIER_PRESENCE;
             end case;
         end if;
     end process;
-    o_size <= size;
-    o_valid <= valid;
+    o_packet <= packet;
+    o_size   <= size;
+    o_fcs    <= fcs_recv;
+    o_valid  <= valid;
+
+    -- Frame check sequence calculator
+    fcs_calculator : work.ethernet.fcs_calculator
+        port map (
+            i_crc   => prev_crc,
+            i_dibit => crc_dibit,
+            o_crc   => crc,
+            o_fcs   => fcs_calc
+        );
 
 end behavioral;
