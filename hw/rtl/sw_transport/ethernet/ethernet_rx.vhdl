@@ -133,6 +133,8 @@ begin
                             byte := (dibit - 16) / DIBITS_PER_BYTE;
                             rest := dibit mod DIBITS_PER_BYTE;
 
+                            size <= byte + 1;
+
                             -- Place dibit in packet
                             packet(
                                 (byte + 1) * BITS_PER_BYTE -
