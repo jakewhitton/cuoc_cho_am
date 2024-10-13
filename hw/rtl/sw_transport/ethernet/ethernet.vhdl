@@ -54,7 +54,6 @@ package ethernet is
             phy       : view EthernetPhy_t;
             o_packet  : out  EthernetPacket_t;
             o_size    : out  natural;
-            o_fcs     : out  EthernetFCS_t;
             o_valid   : out  std_logic;
         );
     end component;
@@ -65,7 +64,6 @@ package ethernet is
             phy       : view EthernetPhy_t;
             i_packet  : in   EthernetPacket_t;
             i_size    : in   natural;
-            i_fcs     : in   EthernetFCS_t;
             i_valid   : in   std_logic;
         );
     end component;

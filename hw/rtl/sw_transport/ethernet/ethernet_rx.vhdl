@@ -10,7 +10,6 @@ entity ethernet_rx is
         phy       : view EthernetPhy_t;
         o_packet  : out  EthernetPacket_t;
         o_size    : out  natural;
-        o_fcs     : out  EthernetFCS_t;
         o_valid   : out  std_logic;
     );
 end ethernet_rx;
@@ -166,7 +165,6 @@ begin
     end process;
     o_packet <= packet;
     o_size   <= size;
-    o_fcs    <= fcs_recv;
     o_valid  <= valid;
 
     -- Frame check sequence calculator
