@@ -22,6 +22,11 @@ set(RTL_SRC
     ${RTL_DIR}/sw_transport/uart/uart_rx.vhdl
     ${RTL_DIR}/sw_transport/uart/uart_tx.vhdl
     ${RTL_DIR}/sw_transport/uart/uart_loopback.vhdl
+    ${RTL_DIR}/sw_transport/ethernet/ethernet.vhdl
+    ${RTL_DIR}/sw_transport/ethernet/ethernet_trx.vhdl
+    ${RTL_DIR}/sw_transport/ethernet/ethernet_rx.vhdl
+    ${RTL_DIR}/sw_transport/ethernet/ethernet_tx.vhdl
+    ${RTL_DIR}/sw_transport/ethernet/fcs_calculator.vhdl
 
     # Communication between fpga <-> DAC/ADC
     library:external_transport
@@ -52,6 +57,7 @@ set(RTL_SRC
 # `get_ip_config` in generate_ip.tcl
 set(IP_MODULES
     ip_clk_wizard_spdif
+    ip_clk_wizard_ethernet
 )
 
 # Constraint sources
