@@ -7,7 +7,7 @@ library work;
 entity ethernet_trx is
     port (
         i_clk  : in   std_logic;
-        phy    : view EthernetPhy_t;
+        phy    : view Phy_t;
         o_leds : out  std_logic_vector(15 downto 0);
     );
 end ethernet_trx;

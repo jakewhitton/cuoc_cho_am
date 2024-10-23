@@ -12,7 +12,7 @@ entity top is
         i_clk        : in   std_logic;
         i_spdif      : in   std_logic;
         o_spdif      : out  std_logic;
-        ethernet_phy : view sw_transport.ethernet.EthernetPhy_t;
+        ethernet_phy : view sw_transport.ethernet.Phy_t;
         o_leds       : out  std_logic_vector(15 downto 0)
     );
 end top;

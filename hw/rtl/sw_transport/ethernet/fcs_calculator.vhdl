@@ -12,18 +12,17 @@ library work;
 
 entity fcs_calculator is
     port (
-        i_crc   : in  EthernetFCS_t;
-        i_dibit : in  std_logic_vector(1 downto 0);
-        o_crc   : out EthernetFCS_t;
-        -- Post-complement of o_crc, required by FCS
-        o_fcs   : out EthernetFCS_t;
+        i_crc   : in  CRC32_t;
+        i_dibit : in  Dibit_t;
+        o_crc   : out CRC32_t;
+        o_fcs   : out FCS_t;
     );
 end entity fcs_calculator;
 
 architecture dataflow of fcs_calculator is
 
     -- Intermediate signals
-    signal crc : EthernetFCS_t := (others => '0');
+    signal crc : CRC32_t := (others => '0');
     
 begin
 
