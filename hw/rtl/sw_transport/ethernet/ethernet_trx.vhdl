@@ -18,10 +18,8 @@ architecture behavioral of ethernet_trx is
     signal ref_clk : std_logic := '0';
 
     -- Intermediate signals for ethernet_rx
-    signal rx_packet : EthernetPacket_t := (others => '0');
-    signal rx_size   : natural          := 0;
-    signal rx_fcs    : EthernetFCS_t    := (others => '0');
-    signal rx_valid  : std_logic        := '0';
+    signal rx_frame : Frame_t   := Frame_t_INIT;
+    signal rx_valid : std_logic := '0';
 
     component ip_clk_wizard_ethernet is
         port (
@@ -45,8 +43,7 @@ begin
         port map (
             i_ref_clk => ref_clk,
             phy       => phy,
-            o_packet  => rx_packet,
-            o_size    => rx_size,
+            o_frame   => rx_frame,
             o_valid   => rx_valid
         );
 

@@ -1,5 +1,6 @@
 library ieee;
     use ieee.std_logic_1164.all;
+    use ieee.numeric_std.all;
 
 library work;
     use work.ethernet.all;
@@ -7,165 +8,232 @@ library work;
 entity ethernet_rx is
     port (
         i_ref_clk : in   std_logic;
-        phy       : view EthernetPhy_t;
-        o_packet  : out  EthernetPacket_t;
-        o_size    : out  natural;
+        phy       : view Phy_t;
+        o_frame   : out  Frame_t;
         o_valid   : out  std_logic;
     );
 end ethernet_rx;
 
 architecture behavioral of ethernet_rx is
 
-    -- Receive state
-    type State_t is (
-        WAIT_FOR_CARRIER_ABSENCE,  -- Wait for CRS_DV to go low
-        WAIT_FOR_CARRIER_PRESENCE, -- Wait for CRS_DV to go high
-        WAIT_FOR_PREAMBLE,         -- Wait for preamble to start
-        PREAMBLE,                  -- Receive full preamble (7 bytes)
-        START_FRAME_DELIMITER,     -- Receive full SFD      (1 byte)
-        FRAME                      -- Receive full frame    (n bytes)
+    -- Dibit streaming state
+    type StreamState_t is (
+        PREAMBLE_AND_SFD, -- Wait for complete preamble & SFD
+        STREAM_FRAME      -- Stream frame dibits
     );
-    signal state    : State_t       := WAIT_FOR_CARRIER_ABSENCE;
-    signal dibit    : natural       := 0;
-    signal fcs_recv : EthernetFCS_t := (others => '0');
+    signal stream_state : StreamState_t := PREAMBLE_AND_SFD;
+    signal psfd_counter : natural       := 0;
+    signal dibit_data   : Dibit_t       := (others => '0');
+    signal dibit_valid  : std_logic     := '0';
+
+    -- Dibit placing state
+    type PlaceState_t is (
+        WAIT_FOR_FRAME, -- Wait for dibit stream of next frame
+        PLACE_FRAME,    -- Place frame dibits
+        VALIDATE_FRAME  -- Validate FCS & publish frame
+    );
+    signal place_state      : PlaceState_t   := WAIT_FOR_FRAME;
+    signal prev_dibit_valid : std_logic      := '0';
+    signal section          : FrameSection_t := DESTINATION_MAC;
+    signal offset           : natural        := 0;
+    signal fcs_recv         : FCS_t          := (others => '0');
 
     -- Intermediate signals for fcs_calculator
-    signal prev_crc  : EthernetFCS_t                := (others => '0');
-    signal crc_dibit : std_logic_vector(1 downto 0) := (others => '0');
-    signal crc       : EthernetFCS_t                := (others => '0');
-    signal fcs_calc  : EthernetFCS_t                := (others => '0');
+    signal prev_crc  : CRC32_t := (others => '0');
+    signal crc_dibit : Dibit_t := (others => '0');
+    signal crc       : CRC32_t := (others => '0');
+    signal fcs_calc  : FCS_t   := (others => '0');
 
     -- Intermediate signals
-    signal packet   : EthernetPacket_t := (others => '0');
-    signal size     : natural          := 0;
-    signal valid    : std_logic        := '0';
+    signal frame : Frame_t   := Frame_t_INIT;
+    signal valid : std_logic := '0';
 
 begin
 
-    -- Receive state machine
-    --
-    -- Note: i_ref_clk is the 50MHz clock that is fed into phy.clkin
-    recv_sm : process(i_ref_clk)
-        variable byte : natural := 0;
-        variable rest : natural := 0;
+    -- Present frames from PHY as a stream of dibits
+    stream_dibits : process(i_ref_clk)
     begin
         if rising_edge(i_ref_clk) then
-            case state is
-                when WAIT_FOR_CARRIER_ABSENCE =>
-                    -- Wait for CRS_DV to go low, then transit
-                    if phy.crs_dv = '0' then
-                        state <= WAIT_FOR_CARRIER_PRESENCE;
-                    end if;
+            case stream_state is
+            when PREAMBLE_AND_SFD =>
+                -- Reset psfd_counter when preamble pattern is disrupted
+                if phy.crs_dv = '0' or
+                    ( psfd_counter < PSFD_LAST_DIBIT
+                      and phy.rxd /= PSFD_VALID_DIBIT_REST ) or
+                    ( psfd_counter = PSFD_LAST_DIBIT
+                      and phy.rxd /= PSFD_VALID_DIBIT_LAST )
+                then
+                    psfd_counter <= 0;
 
-                when WAIT_FOR_CARRIER_PRESENCE =>
-                    -- Wait for CRS_DV to go high, then transit
-                    if phy.crs_dv = '1' then
-                        state <= WAIT_FOR_PREAMBLE;
-                    end if;
+                -- Otherwise, wait for final PSFD dibit, then transit
+                elsif psfd_counter < PSFD_LAST_DIBIT then
+                    psfd_counter <= psfd_counter + 1;
+                else
+                    -- Begin dibit stream one clock cycle early to give
+                    -- place_dibits an opportunity to transit
+                    dibit_data <= (others => '0');
+                    dibit_valid <= '1';
 
-                when WAIT_FOR_PREAMBLE =>
-                    -- If carrier has been lost, wait for carrier
-                    if phy.crs_dv = '0' then
-                        state <= WAIT_FOR_CARRIER_PRESENCE;
+                    psfd_counter <= 0;
+                    stream_state <= STREAM_FRAME;
+                end if;
 
-                    -- Otherwise, wait for first preamble dibit, then transit
-                    elsif phy.rxd = VALID_PREAMBLE_DIBIT then
-                        dibit <= 1;
-                        state <= PREAMBLE;
-                    end if;
+            when STREAM_FRAME =>
+                -- If dibits are still being presented, pass them along
+                if phy.crs_dv = '1' then
+                    dibit_data <= phy.rxd;
+                    dibit_valid <= '1';
 
-                when PREAMBLE =>
-                    -- If carrier has been lost, wait for carrier
-                    if phy.crs_dv = '0' then
-                        state <= WAIT_FOR_CARRIER_PRESENCE;
-
-                    -- Otherwise, if we detect false carrier, abandon packet
-                    elsif phy.rxd /= VALID_PREAMBLE_DIBIT then
-                        state <= WAIT_FOR_CARRIER_ABSENCE;
-
-                    -- Otherwise, wait for last preamble dibit, then transit
-                    elsif dibit < PREAMBLE_LAST_DIBIT then
-                        dibit <= dibit + 1;
-                    else
-                        dibit <= 0;
-                        state <= START_FRAME_DELIMITER;
-                    end if;
-
-                when START_FRAME_DELIMITER =>
-                    -- If carrier has been lost, wait for carrier
-                    if phy.crs_dv = '0' then
-                        state <= WAIT_FOR_CARRIER_PRESENCE;
-
-                    -- Otherwise, if we detect false carrier, abandon packet
-                    elsif ( dibit < SFD_LAST_DIBIT
-                            and phy.rxd /= VALID_SFD_DIBIT_REST ) or
-                          ( dibit = SFD_LAST_DIBIT
-                            and phy.rxd /= VALID_SFD_DIBIT_LAST )
-                    then
-                        state <= WAIT_FOR_CARRIER_ABSENCE;
-
-                    -- Otherwise, wait for last SFD dibit, then transit
-                    elsif dibit < SFD_LAST_DIBIT then
-                        dibit <= dibit + 1;
-                    else
-                        dibit    <= 0;
-                        packet   <= (others => '0');
-                        size     <= 0;
-                        fcs_recv <= (others => '0');
-                        valid    <= '0';
-                        state    <= frame;
-                    end if;
-
-                when FRAME =>
-                    -- If data is still being presented, receive it
-                    if phy.crs_dv = '1' then
-
-                        -- Shift dibits into fcs_recv, preserving transmit order
-                        fcs_recv(31 downto 2) <= fcs_recv(29 downto 0);
-                        fcs_recv(1)           <= phy.rxd(0);
-                        fcs_recv(0)           <= phy.rxd(1);
-
-                        -- Once fcs_recv has been filled, start spilling dibits
-                        -- over to packet, along with FCS calculation
-                        if dibit > FCS_LAST_DIBIT then
-
-                            byte := (dibit - 16) / DIBITS_PER_BYTE;
-                            rest := dibit mod DIBITS_PER_BYTE;
-
-                            size <= byte + 1;
-
-                            -- Place dibit in packet
-                            packet(
-                                (byte + 1) * BITS_PER_BYTE -
-                                    (rest + 1) * BITS_PER_DIBIT
-                            ) <= fcs_recv(30);
-                            packet(
-                                (byte + 1) * BITS_PER_BYTE -
-                                    (rest + 1) * BITS_PER_DIBIT + 1
-                            ) <= fcs_recv(31);
-
-                            -- Update calculated FCS
-                            with dibit select prev_crc <=
-                                (others => '1') when FCS_LAST_DIBIT + 1,
-                                crc             when others;
-                            crc_dibit <= fcs_recv(31 downto 30);
-                        end if;
-
-                        dibit <= dibit + 1;
-
-                    -- Otherwise, publish packet if CRC is valid, then transit
-                    else
-                        if fcs_recv = fcs_calc then
-                            valid <= '1';
-                        end if;
-                        state <= WAIT_FOR_CARRIER_PRESENCE;
-                    end if;
+                -- Otherwise, signal end of dibit stream, then transit
+                else
+                    dibit_data  <= (others => '0');
+                    dibit_valid <= '0';
+                    stream_state <= PREAMBLE_AND_SFD;
+                end if;
             end case;
         end if;
     end process;
-    o_packet <= packet;
-    o_size   <= size;
-    o_valid  <= valid;
+
+    -- Place dibits streamed from PHY into their correct place in a Frame_t
+    place_dibits : process(i_ref_clk)
+        variable pos : natural := 0;
+    begin
+        if rising_edge(i_ref_clk) then
+            case place_state is
+            when WAIT_FOR_FRAME =>
+                -- Wait for rising edge on dibit_valid, then transit
+                if prev_dibit_valid = '0' and dibit_valid = '1' then
+                    frame <= Frame_t_INIT;
+                    valid <= '0';
+                    offset <= 0;
+                    section <= DESTINATION_MAC;
+                    place_state <= PLACE_FRAME;
+                end if;
+
+            when PLACE_FRAME =>
+                -- If dibit stream ends prematurely, abandon frame
+                if dibit_valid = '0' then
+                    place_state <= WAIT_FOR_FRAME;
+
+                -- Otherwise, place dibit & transit when appropriate
+                else
+                    -- Update our calculated FCS
+                    if section /= FRAME_CHECK_SEQUENCE then
+                        prev_crc <= CRC32_t_INIT when
+                                    section = DESTINATION_MAC and offset = 0
+                                    else crc;
+                        crc_dibit(1) <= dibit_data(0);
+                        crc_dibit(0) <= dibit_data(1);
+                    end if;
+
+                    pos := get_dibit_pos(offset, section);
+
+                    case section is
+                    when DESTINATION_MAC =>
+                        frame.dest_mac(pos to pos + 1) <= dibit_data;
+
+                        -- Wait for final dest MAC dibit, then transit
+                        if offset < MAC_LAST_DIBIT then
+                            offset <= offset + 1;
+                        else
+                            offset <= 0;
+                            section <= SOURCE_MAC;
+                        end if;
+
+                    when SOURCE_MAC =>
+                        frame.src_mac(pos to pos + 1) <= dibit_data;
+
+                        -- Wait for final src MAC dibit, then transit
+                        if offset < MAC_LAST_DIBIT then
+                            offset <= offset + 1;
+                        else
+                            offset <= 0;
+                            section <= LENGTH;
+                        end if;
+
+                    when LENGTH =>
+                        frame.length(pos to pos + 1) <= unsigned(dibit_data);
+
+                        -- Wait for final length dibit, then transit
+                        if offset < LENGTH_LAST_DIBIT then
+                            offset <= offset + 1;
+                        else
+                            offset <= 0;
+                            section <= PAYLOAD;
+                        end if;
+
+                    when PAYLOAD =>
+                        -- If we have exceeded MTU, abandon frame
+                        if offset >= MAX_PAYLOAD_SIZE * DIBITS_PER_BYTE then
+                            place_state <= WAIT_FOR_FRAME;
+
+                        -- Otherwise, accept dibit
+                        else
+                            frame.payload(pos to pos + 1) <= dibit_data;
+
+                            -- If payload is incomplete, advance to next dibit
+                            if offset + 1 < frame.length * DIBITS_PER_BYTE then
+                                offset <= offset + 1;
+
+                            -- Otherwise, if payload is smaller than what would
+                            -- be needed to meet minimum frame size, expect
+                            -- padding to follow
+                            elsif offset < MIN_PAYLOAD_SIZE * DIBITS_PER_BYTE
+                            then
+                                offset <= 0;
+                                section <= PADDING;
+
+                            -- Otherwise, expect FCS to follow
+                            else
+                                offset <= 0;
+                                section <= FRAME_CHECK_SEQUENCE;
+                            end if;
+                        end if;
+
+                    when PADDING =>
+                        -- No-op when receiving padding
+                        --
+                        -- Wait for final padding dibit, then transit
+                        if offset + 1 <
+                           (MIN_PAYLOAD_SIZE - frame.length) * DIBITS_PER_BYTE
+                        then
+                            offset <= offset + 1;
+                        else
+                            offset <= 0;
+                            section <= FRAME_CHECK_SEQUENCE;
+                        end if;
+
+                    when FRAME_CHECK_SEQUENCE =>
+                        -- Note: FCS bytes are transmitted msb -> lsb, whereas
+                        -- all other bytes are transmitted lsb -> msb.
+                        --
+                        -- Because of this, we reverse dibit order
+                        fcs_recv(pos) <= dibit_data(0);
+                        fcs_recv(pos - 1) <= dibit_data(1);
+
+                        -- Wait for final FCS dibit, then transit
+                        if offset < FCS_LAST_DIBIT then
+                            offset <= offset + 1;
+                        else
+                            place_state <= VALIDATE_FRAME;
+                        end if;
+                    end case;
+                end if;
+
+            when VALIDATE_FRAME =>
+                -- If stream concluded when we predicted it would and our
+                -- calculated FCS matches our received FCS, publish frame
+                if dibit_valid = '0' and fcs_recv = fcs_calc then
+                    valid <= '1';
+                end if;
+
+                place_state <= WAIT_FOR_FRAME;
+            end case;
+            prev_dibit_valid <= dibit_valid;
+        end if;
+    end process;
+    o_frame <= frame;
+    o_valid <= valid;
 
     -- Frame check sequence calculator
     fcs_calculator : work.ethernet.fcs_calculator
