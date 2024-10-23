@@ -1,5 +1,6 @@
 library ieee;
     use ieee.std_logic_1164.all;
+    use ieee.numeric_std.all;
 
 library work;
     use work.ethernet.all;
@@ -7,9 +8,8 @@ library work;
 entity ethernet_tx is
     port (
         i_ref_clk : in   std_logic;
-        phy       : view EthernetPhy_t;
-        i_packet  : in   EthernetPacket_t;
-        i_size    : in   natural;
+        phy       : view Phy_t;
+        i_frame   : in   Frame_t;
         i_valid   : in   std_logic;
     );
 end ethernet_tx;
@@ -17,150 +17,173 @@ end ethernet_tx;
 architecture behavioral of ethernet_tx is
 
     -- Input data buffering state
-    signal prev_i_valid : std_logic        := '0';
-    signal packet       : EthernetPacket_t := (others => '0');
-    signal size         : natural          := 0;
+    signal prev_i_valid : std_logic := '0';
+    signal frame        : Frame_t   := Frame_t_INIT;
 
     -- Transmit state
     type State_t is (
-        WAIT_FOR_DATA,         -- Wait for user to present packet for TX
-        PREAMBLE,              -- Transmit full preamble (7 bytes)
-        START_FRAME_DELIMITER, -- Transmit full SFD      (1 byte)
-        PAYLOAD,               -- Transmit full payload  (n bytes)
-        FRAME_CHECK_SEQUENCE,  -- Transmit full FCS      (4 bytes)
-        INTER_PACKET_GAP       -- Idle period before transmitting again
+        WAIT_FOR_FRAME,   -- Wait for frame to be presented on inputs
+        PREAMBLE_AND_SFD, -- Send complete preamble & SFD
+        SEND_FRAME,       -- Send complete frame
+        INTER_PACKET_GAP  -- Wait before accepting new frame
     );
-    signal state      : State_t := WAIT_FOR_DATA;
-    signal dibit      : natural := 0;
-    signal bytes_sent : natural := 0;
+    signal state   : State_t        := WAIT_FOR_FRAME;
+    signal section : FrameSection_t := DESTINATION_MAC;
+    signal offset  : natural        := 0;
 
     -- Intermediate signals for fcs_calculator
-    signal prev_crc  : EthernetFCS_t                := (others => '0');
-    signal crc_dibit : std_logic_vector(1 downto 0) := (others => '0');
-    signal crc       : EthernetFCS_t                := (others => '0');
-    signal fcs_calc  : EthernetFCS_t                := (others => '0');
+    signal prev_crc  : CRC32_t := (others => '0');
+    signal crc_dibit : Dibit_t := (others => '0');
+    signal crc       : CRC32_t := (others => '0');
+    signal fcs_calc  : FCS_t   := (others => '0');
 
     -- Intermediate signals
-    signal txd   : std_logic_vector(1 downto 0) := (others => '0');
-    signal tx_en : std_logic                    := '0';
+    signal txd   : Dibit_t   := (others => '0');
+    signal tx_en : std_logic := '0';
 
 begin
 
-    -- Transmit state machine
-    --
-    -- Note: i_ref_clk is the 50MHz clock that is fed into phy.clkin
+    -- Transmit frames
     transmit_sm : process(i_ref_clk)
+        variable pos   : natural := 0;
+        variable dibit : Dibit_t := (others => '0');
     begin
         if rising_edge(i_ref_clk) then
             case state is
-                when WAIT_FOR_DATA =>
-                    -- Wait for user to present data, latch it, then transit
-                    if prev_i_valid = '0' and i_valid = '1' then
-                        packet <= i_packet;
-                        size <= i_size;
-                        dibit <= 0;
-                        state <= PREAMBLE;
+            when WAIT_FOR_FRAME =>
+                -- Wait for rising edge on i_valid, then transit
+                if prev_i_valid = '0' and i_valid = '1' then
+                    frame <= i_frame;
+                    offset <= 0;
+                    state <= PREAMBLE_AND_SFD;
+                end if;
+
+            when PREAMBLE_AND_SFD =>
+                txd <= PSFD_VALID_DIBIT_REST
+                       when offset < PSFD_LAST_DIBIT
+                       else PSFD_VALID_DIBIT_LAST;
+                tx_en <= '1';
+
+                -- Wait for final PSFD dibit, then transit
+                if offset < PSFD_LAST_DIBIT then
+                    offset <= offset + 1;
+                else
+                    section <= DESTINATION_MAC;
+                    offset <= 0;
+                    state <= SEND_FRAME;
+                end if;
+
+            when SEND_FRAME =>
+
+                -- Select dibit to transmit based on section and offset
+                pos := get_dibit_pos(offset, section);
+                case section is
+                when DESTINATION_MAC =>
+                    dibit := frame.dest_mac(pos to pos + 1);
+
+                    -- Wait for final dest MAC dibit, then transit
+                    if offset < MAC_LAST_DIBIT then
+                        offset <= offset + 1;
+                    else
+                        offset <= 0;
+                        section <= SOURCE_MAC;
                     end if;
 
-                when PREAMBLE =>
+                when SOURCE_MAC =>
+                    dibit := frame.src_mac(pos to pos + 1);
 
-                    txd <= VALID_PREAMBLE_DIBIT;
-                    tx_en <= '1';
-
-                    -- Wait for last preamble dibit, then transit
-                    if dibit < PREAMBLE_LAST_DIBIT then
-                        dibit <= dibit + 1;
+                    -- Wait for final src MAC dibit, then transit
+                    if offset < MAC_LAST_DIBIT then
+                        offset <= offset + 1;
                     else
-                        dibit <= 0;
-                        state <= START_FRAME_DELIMITER;
+                        offset <= 0;
+                        section <= LENGTH;
                     end if;
 
-                when START_FRAME_DELIMITER =>
+                when LENGTH =>
+                    dibit := Dibit_t(frame.length(pos to pos + 1));
 
-                    txd <= VALID_SFD_DIBIT_REST
-                               when dibit < SFD_LAST_DIBIT
-                               else VALID_SFD_DIBIT_LAST;
-                    tx_en <= '1';
-
-                    -- Wait for last SFD dibit, then transit
-                    if dibit < SFD_LAST_DIBIT then
-                        dibit <= dibit + 1;
+                    -- Wait for final length dibit, then transit
+                    if offset < LENGTH_LAST_DIBIT then
+                        offset <= offset + 1;
                     else
-                        dibit <= 0;
-                        bytes_sent <= 0;
-                        state <= PAYLOAD;
+                        offset <= 0;
+                        section <= PAYLOAD;
                     end if;
 
                 when PAYLOAD =>
+                    dibit := frame.payload(pos to pos + 1);
 
-                    -- Note: although ethernet transmits bytes in the order
-                    -- in which they appear in the packet, each individual
-                    -- byte is transmitted from lsb -> msb.
-                    --
-                    -- To compute the location in the packet where this
-                    -- dibit should be placed, we start with an offset that
-                    -- points at the beginning of the byte after the one
-                    -- currently being transmitted.
-                    --
-                    -- Then, we count backwards for however many dibits
-                    -- have been transmitted in the current byte.
-                    --
-                    txd <= packet(
-                        ((dibit / DIBITS_PER_BYTE) + 1) * BITS_PER_BYTE -
-                        ((dibit mod DIBITS_PER_BYTE) + 1) * BITS_PER_DIBIT
-                    to
-                        ((dibit / DIBITS_PER_BYTE) + 1) * BITS_PER_BYTE -
-                        ((dibit mod DIBITS_PER_BYTE) + 1) * BITS_PER_DIBIT + 1
-                    );
-                    tx_en <= '1';
+                    -- If payload is incomplete, advance to next dibit
+                    if offset + 1 < frame.length * DIBITS_PER_BYTE then
+                        offset <= offset + 1;
 
-                    -- Update calculated FCS
-                    with dibit select prev_crc <=
-                        (others => '1') when 0,
-                        crc             when others;
-                    crc_dibit(0) <= packet(
-                        ((dibit / DIBITS_PER_BYTE) + 1) * BITS_PER_BYTE -
-                        ((dibit mod DIBITS_PER_BYTE) + 1) * BITS_PER_DIBIT
-                    );
-                    crc_dibit(1) <= packet(
-                        ((dibit / DIBITS_PER_BYTE) + 1) * BITS_PER_BYTE -
-                        ((dibit mod DIBITS_PER_BYTE) + 1) * BITS_PER_DIBIT + 1
-                    );
+                    -- Otherwise, if payload is smaller than what would be
+                    -- needed to meet minimum frame size, select padding to
+                    -- follow
+                    elsif offset < MIN_PAYLOAD_SIZE * DIBITS_PER_BYTE
+                    then
+                        offset <= 0;
+                        section <= PADDING;
 
-                    -- Wait for last payload bit, then transit
-                    if dibit + 1 < size * DIBITS_PER_BYTE then
-                        dibit <= dibit + 1;
+                    -- Otherwise, select FCS to follow
                     else
-                        dibit <= 0;
-                        state <= FRAME_CHECK_SEQUENCE;
+                        offset <= 0;
+                        section <= FRAME_CHECK_SEQUENCE;
+                    end if;
+
+                when PADDING =>
+                    -- Pad with zeroes
+                    dibit := "00";
+
+                    -- Wait for final padding dibit, then transit
+                    if offset + 1 <
+                        (MIN_PAYLOAD_SIZE - frame.length) * DIBITS_PER_BYTE
+                    then
+                        offset <= offset + 1;
+                    else
+                        offset <= 0;
+                        section <= FRAME_CHECK_SEQUENCE;
                     end if;
 
                 when FRAME_CHECK_SEQUENCE =>
+                    dibit(0) := fcs_calc(pos);
+                    dibit(1) := fcs_calc(pos - 1);
 
-                    txd(0) <= fcs_calc(31 - dibit*BITS_PER_DIBIT);
-                    txd(1) <= fcs_calc(30 - dibit*BITS_PER_DIBIT);
-                    tx_en <= '1';
-
-                    -- Wait for last FCS dibit, end transmission, then transit
-                    if dibit < FCS_LAST_DIBIT then
-                        dibit <= dibit + 1;
+                    -- Wait for final FCS dibit, then transit
+                    if offset < FCS_LAST_DIBIT then
+                        offset <= offset + 1;
                     else
-                        dibit <= 0;
+                        offset <= 0;
                         state <= INTER_PACKET_GAP;
                     end if;
+                end case;
 
-                when INTER_PACKET_GAP =>
+                -- Update our calculated FCS
+                if section /= FRAME_CHECK_SEQUENCE then
+                    prev_crc <= CRC32_t_INIT when
+                                section = DESTINATION_MAC and offset = 0
+                                else crc;
+                    crc_dibit(1) <= dibit(0);
+                    crc_dibit(0) <= dibit(1);
+                end if;
 
-                    txd <= "00";
-                    tx_en <= '0';
+                -- Transmit dibit that was selected
+                txd <= dibit;
+                tx_en <= '1';
 
-                    -- Wait for last IPG dibit, then transit
-                    if dibit < IPG_LAST_DIBIT then
-                        dibit <= dibit + 1;
-                    else
-                        dibit <= 0;
-                        state <= WAIT_FOR_DATA;
-                    end if;
+            when INTER_PACKET_GAP =>
+                txd <= "00";
+                tx_en <= '0';
+                
+                -- Wait for final IPG dibit, then transit
+                if offset < IPG_LAST_DIBIT then
+                    offset <= offset + 1;
+                else
+                    state <= WAIT_FOR_FRAME;
+                end if;
+
+                state <= WAIT_FOR_FRAME;
             end case;
             prev_i_valid <= i_valid;
         end if;

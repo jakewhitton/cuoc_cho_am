@@ -52,8 +52,7 @@ begin
         port map (
             i_ref_clk => ref_clk,
             phy       => phy,
-            i_packet  => rx_packet,
-            i_size    => rx_size,
+            i_frame   => rx_frame,
             i_valid   => rx_valid
         );
 

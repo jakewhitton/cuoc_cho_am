@@ -132,8 +132,7 @@ package ethernet is
         port (
             i_ref_clk : in   std_logic;
             phy       : view Phy_t;
-            i_packet  : in   Frame_t;
-            i_size    : in   natural;
+            i_frame   : in   Frame_t;
             i_valid   : in   std_logic;
         );
     end component;
