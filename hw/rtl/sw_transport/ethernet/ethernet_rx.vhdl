@@ -50,6 +50,23 @@ architecture behavioral of ethernet_rx is
 
 begin
 
+    -- Note:
+    --
+    -- The RMII specification describes a behavior where phase differences
+    -- between "recovered rx clock" and the 50MHz reference clock causes
+    -- phy.crs_dv to cycle at 25MHz following its initial deassertion.  This
+    -- behavior is supposed to allow any leftover data in the frame to be
+    -- recovered.
+    --
+    -- So far, I have not been able to detect this behavior.  However,
+    -- anticipating the possibility of needing to support this behavior, I have
+    -- separated the implementation into a "streaming" process and a "placing"
+    -- process.
+    --
+    -- The idea is that the logic for handling "recovered dibits" could be
+    -- placed into the "streaming" process and that the "placing" process could
+    -- be left unaffected.
+
     -- Present frames from PHY as a stream of dibits
     stream_dibits : process(i_ref_clk)
     begin
