@@ -62,13 +62,13 @@ add_custom_target(
 add_custom_target(
     qemu
     COMMAND
-        qemu-system-x86_64
+        sudo qemu-system-x86_64
             -M pc
             -kernel ${CMAKE_CURRENT_BINARY_DIR}/images/bzImage
             -drive file=${ROOTFS_IMAGE_PATH},if=virtio,format=raw
             -append "root=/dev/vda console=ttyS0"
-            -net user,hostfwd=tcp:127.0.0.1:3333-:22
-            -net nic,model=virtio
+            -netdev tap,id=mynet0,ifname=tap0,script=no,downscript=no
+            -device virtio-net-pci,netdev=mynet0,mac=52:55:00:d1:55:01
             -nographic
     DEPENDS ${ROOTFS_IMAGE_PATH}
 )
