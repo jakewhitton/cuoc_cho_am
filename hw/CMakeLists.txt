@@ -27,6 +27,7 @@ set(RTL_SRC
     ${RTL_DIR}/sw_transport/ethernet/ethernet_rx.vhdl
     ${RTL_DIR}/sw_transport/ethernet/ethernet_tx.vhdl
     ${RTL_DIR}/sw_transport/ethernet/fcs_calculator.vhdl
+    ${RTL_DIR}/sw_transport/ethernet/protocol.vhdl
 
     # Communication between fpga <-> DAC/ADC
     library:external_transport
