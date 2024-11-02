@@ -62,7 +62,7 @@ add_custom_target(
 add_custom_target(
     qemu
     COMMAND
-        sudo qemu-system-x86_64
+        qemu-system-x86_64
             -M pc
             -kernel ${CMAKE_CURRENT_BINARY_DIR}/images/bzImage
             -drive file=${ROOTFS_IMAGE_PATH},if=virtio,format=raw
