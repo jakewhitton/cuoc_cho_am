@@ -212,6 +212,9 @@ static void device_discovery_exit(void)
 
 
 /*==============================Packet handling===============================*/
+const char *intf_name = "eth0";
+struct net_device *netdev = NULL;
+
 static struct packet_type *proto;
 
 static int packet_recv(struct sk_buff *skb, struct net_device *dev,
@@ -221,25 +224,33 @@ static int packet_init(void)
 {
     int err;
 
-    proto = kzalloc(sizeof(*proto), GFP_KERNEL);
-    if (!proto) {
-        err = -ENOMEM;
+    // Search for the interface we plan to use for communication with the FPGA
+    netdev = dev_get_by_name(&init_net, intf_name);
+    if (!netdev) {
+        printk(KERN_ERR "cco: unable to find intf \"%s\"\n", intf_name);
+        err = -ENODEV;
         goto exit_error;
     }
 
+    proto = kzalloc(sizeof(*proto), GFP_KERNEL);
+    if (!proto) {
+        err = -ENOMEM;
+        goto undo_select_net_dev;
+    }
+
     proto->type = htons(ETH_P_802_2);
-    proto->dev = dev_get_by_name(&init_net, "eth0");
+    proto->dev = netdev;
     proto->func = packet_recv;
     dev_add_pack(proto);
 
     return 0;
 
+undo_select_net_dev:
+    netdev = NULL;
 exit_error:
     CCO_LOG_FUNCTION_FAILURE(err);
     return err;
 }
-
-static struct net_device *netdev = NULL;
 
 static int packet_recv(struct sk_buff *skb, struct net_device *dev,
                        struct packet_type *pt, struct net_device *orig_dev)
@@ -247,10 +258,6 @@ static int packet_recv(struct sk_buff *skb, struct net_device *dev,
     if (!is_valid_cco_packet(skb)) {
         kfree_skb(skb);
         return 0;
-    }
-
-    if (!netdev) {
-        netdev = dev;
     }
 
     Msg_t *msg = get_cco_msg(skb);
