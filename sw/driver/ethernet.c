@@ -82,7 +82,7 @@ typedef struct
     uint8_t session_id;
 } __attribute__((packed)) HandshakeRequestMsg_t;
 
-struct
+typedef struct
 {
     uint8_t session_id;
 } __attribute__((packed)) HandshakeResponseMsg_t;
@@ -150,7 +150,7 @@ static struct task_struct *dd_task;
 static int dd_impl(void * data);
 
 // Defined in "Packet handling" section
-static void send_handshake_request(unsigned char *dest_mac, uint8_t session_id);
+static int send_handshake_request(unsigned char *dest_mac, uint8_t session_id);
 
 static int device_discovery_init(void)
 {
@@ -276,39 +276,83 @@ static int packet_recv(struct sk_buff *skb, struct net_device *dev,
     return 0;
 }
 
-static void send_handshake_request(unsigned char *dest_mac, uint8_t session_id)
+static int create_cco_packet(const char * dest_mac, uint8_t msg_type,
+                             struct sk_buff **skb_out)
 {
-    if (!netdev) {
-        printk(KERN_ERR "Do not have net device to use!!\n");
-        return;
+    int err;
+
+    // Calculate payload size based on msg_type
+    unsigned len = sizeof(Msg_t);
+    switch (msg_type) {
+    case ANNOUNCE:
+        len += sizeof(AnnounceMsg_t);
+        break;
+    case HANDSHAKE_REQUEST:
+        len += sizeof(HandshakeRequestMsg_t);
+        break;
+    case HANDSHAKE_RESPONSE:
+        len += sizeof(HandshakeResponseMsg_t);
+        break;
+    default:
+        printk(KERN_ERR "cco: \"%d\" is not a valid msgtype\n", msg_type);
+        err = -EINVAL;
+        goto exit_error;
     }
 
-    struct sk_buff *skb = alloc_skb(ETH_FRAME_LEN, GFP_KERNEL);
+    // Allocate sk_buff
+    struct sk_buff *skb = alloc_skb(ETH_HLEN + len, GFP_KERNEL);
     if (IS_ERR(skb)) {
-        printk(KERN_ERR "Failed to allocate sk_buff\n");
-        return;
+        printk(KERN_ERR "cco: failed to allocate sk_buff\n");
+        err = -ENOMEM;
+        goto exit_error;
     }
-
-    skb_reserve(skb, ETH_HLEN);
-
-    // Ethernet header
-    unsigned len = sizeof(Msg_t) + sizeof(HandshakeRequestMsg_t);
-    dev_hard_header(skb, netdev, ETH_P_802_3, dest_mac, netdev->dev_addr, len);
-
-    // Ethernet payload
-    char *payload = skb_put(skb, len);
-    Msg_t *msg = (Msg_t *)payload;
-    msg->magic = htonl(CCO_MAGIC);
-    msg->msg_type = HANDSHAKE_REQUEST;
-    HandshakeRequestMsg_t * hs_req = (HandshakeRequestMsg_t *)msg->payload;
-    hs_req->session_id = session_id;
-
     skb->dev = netdev;
 
+    // Create 802.3 ethernet header
+    skb_reserve(skb, ETH_HLEN);
+    dev_hard_header(skb, netdev, ETH_P_802_3, dest_mac, netdev->dev_addr, len);
+
+    // Create cco header
+    Msg_t *msg = (Msg_t *)skb_put(skb, len);
+    msg->magic = htonl(CCO_MAGIC);
+    msg->msg_type = msg_type;
+
+    *skb_out = skb;
+
+    return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
+
+static int send_handshake_request(unsigned char *dest_mac, uint8_t session_id)
+{
+    int err;
+
+    struct sk_buff *skb;
+    err = create_cco_packet(dest_mac, HANDSHAKE_REQUEST, &skb);
+    if (err < 0)
+        goto exit_error;
+
+    // Ethernet payload
+    HandshakeRequestMsg_t *msg;
+    msg = (HandshakeRequestMsg_t *)(skb->data + sizeof(Msg_t));
+    msg->session_id = session_id;
+
     if (dev_queue_xmit(skb) != NET_XMIT_SUCCESS) {
-        printk(KERN_ERR "Failed to enqueue packet\n");
-        kfree_skb(skb);
+        printk(KERN_ERR "cco: failed to enqueue packet\n");
+        err = -EAGAIN;
+        goto undo_create_packet;
     }
+
+    return 0;
+
+undo_create_packet:
+    kfree_skb(skb);
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
 }
 
 static void packet_exit(void)
