@@ -1,10 +1,16 @@
 #include "device.h"
 
+#include <linux/delay.h>
+#include <linux/if_ether.h>
+#include <linux/kfifo.h>
+#include <linux/kthread.h>
 #include <linux/slab.h>
 #include <sound/pcm.h>
 
+#include "ethernet.h"
 #include "log.h"
 #include "pcm.h"
+#include "protocol.h"
 
 #define CCO_DRIVER    "cco"
 
@@ -110,6 +116,84 @@ static struct platform_driver cco_driver = {
 /*============================================================================*/
 
 
+/*==============================Device discovery==============================*/
+// Defined in "Device management" section
+static int cco_register_device(void);
+
+#define DD_KFIFO_SIZE 8
+DEFINE_KFIFO(dd_fifo, struct sk_buff *, DD_KFIFO_SIZE);
+static struct task_struct *dd_task;
+
+static int dd_impl(void * data);
+
+int cco_device_discovery_init(void)
+{
+    int err;
+
+    // Set up device discovery kthread
+    struct task_struct *task = kthread_run(dd_impl, NULL, "cco_discover");
+    if (IS_ERR(task)) {
+        printk(KERN_ERR "cco: device discovery kthread could not be created\n");
+        err = -EAGAIN;
+        goto exit_error;
+    }
+    dd_task = task;
+
+    return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
+
+static int dd_impl(void * data)
+{
+    struct sk_buff *skb;
+    while (!kthread_should_stop()) {
+        if (kfifo_get(&dd_fifo, &skb)) {
+            struct ethhdr *hdr = eth_hdr(skb);
+            Msg_t *msg = get_cco_msg(skb);
+            switch (msg->msg_type) {
+            case ANNOUNCE:
+                send_handshake_request(hdr->h_source, 0);
+                break;
+            case HANDSHAKE_RESPONSE:
+                int err = cco_register_device();
+                if (err < 0) {
+                    printk(KERN_INFO "cco: create device failed\n");
+                } else {
+                    printk(KERN_INFO "cco: create device succeeded!\n");
+                }
+                break;
+            }
+            kfree_skb(skb);
+        }
+        msleep(100);
+    }
+
+    return 0;
+}
+
+void cco_device_discovery_exit(void)
+{
+    if (dd_task) {
+        if (kthread_stop(dd_task) < 0)
+            printk(KERN_ERR "cco: could not stop device discovery kthread\n");
+        dd_task = NULL;
+    }
+}
+
+void handle_session_ctl_msg(struct sk_buff *skb)
+{
+    // Because the ethernet frame receive callback runs in an interrupt-like
+    // context, we just pass along message into kfifo so the device discovery
+    // kthread can take its time in handling the message
+    if (!kfifo_put(&dd_fifo, skb))
+        kfree_skb(skb);
+}
+/*============================================================================*/
+
+
 /*==============================Device management=============================*/
 static struct cco_device *devices[SNDRV_CARDS];
 
@@ -117,7 +201,7 @@ static int alloc_fake_buffer(struct cco_device *cco);
 static void free_fake_buffer(struct cco_device *cco);
 static void cco_release_device(struct device *dev);
 
-int cco_register_device(void)
+static int cco_register_device(void)
 {
     int err;
 
@@ -173,28 +257,19 @@ exit_error:
     return err;
 }
 
-void cco_unregister_device(int id)
-{
-    if (id < 0 || id >= ARRAY_SIZE(devices))
-        return;
-
-    struct cco_device *cco = devices[id];
-    if (!cco)
-        return;
-
-    if (cco->card)
-        snd_card_disconnect(cco->card);
-
-    platform_device_unregister(&cco->pdev);
-
-    devices[id] = NULL;
-}
-
 void cco_unregister_devices(void)
 {
     for (int id = 0; id < SNDRV_CARDS; ++id) {
-        if (devices[id])
-            cco_unregister_device(id);
+        struct cco_device *cco = devices[id];
+        if (!cco)
+            continue;
+
+        if (cco->card)
+            snd_card_disconnect(cco->card);
+
+        platform_device_unregister(&cco->pdev);
+
+        devices[id] = NULL;
     }
 }
 

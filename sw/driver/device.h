@@ -2,6 +2,7 @@
 #define CCO_DEVICE_H
 
 #include <linux/platform_device.h>
+#include <linux/skbuff.h>
 #include <sound/core.h>
 
 #include "mixer.h"
@@ -23,9 +24,12 @@ struct cco_device {
 int cco_register_driver(void);
 void cco_unregister_driver(void);
 
+// Device discovery
+int cco_device_discovery_init(void);
+void cco_device_discovery_exit(void);
+void handle_session_ctl_msg(struct sk_buff *skb);
+
 // Device management
-int cco_register_device(void);
-void cco_unregister_device(int id);
 void cco_unregister_devices(void);
 
 #endif
