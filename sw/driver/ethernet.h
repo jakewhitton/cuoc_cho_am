@@ -9,5 +9,6 @@ void cco_ethernet_exit(void);
 
 // Packet sending
 int send_handshake_request(unsigned char *dest_mac, uint8_t session_id);
+int send_heartbeat(unsigned char *dest_mac);
 
 #endif

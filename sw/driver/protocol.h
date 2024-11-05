@@ -8,7 +8,8 @@ enum MsgType_t
 {
     ANNOUNCE           = 0,
     HANDSHAKE_REQUEST  = 1,
-    HANDSHAKE_RESPONSE = 2
+    HANDSHAKE_RESPONSE = 2,
+    HEARTBEAT          = 3
 };
 
 // First 32 bits of the MD5 hash of the string "cuoc cho am"
@@ -34,6 +35,10 @@ typedef struct
 {
     uint8_t session_id;
 } __attribute__((packed)) HandshakeResponseMsg_t;
+
+typedef struct
+{
+} __attribute__((packed)) HeartbeatMsg_t;
 
 static inline int is_valid_cco_packet(struct sk_buff *skb)
 {

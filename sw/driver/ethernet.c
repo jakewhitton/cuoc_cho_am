@@ -20,7 +20,7 @@ struct net_device *netdev = NULL;
 
 static struct packet_type *proto;
 
-// Defined in "Packet handling" section
+// Defined in "Packet receiving" section
 static int packet_recv(struct sk_buff *skb, struct net_device *dev,
                        struct packet_type *pt, struct net_device *orig_dev);
 
@@ -98,6 +98,30 @@ exit_error:
     return err;
 }
 
+int send_heartbeat(unsigned char *dest_mac)
+{
+    int err;
+
+    struct sk_buff *skb;
+    err = create_cco_packet(dest_mac, HEARTBEAT, &skb);
+    if (err < 0)
+        goto exit_error;
+
+    if (dev_queue_xmit(skb) != NET_XMIT_SUCCESS) {
+        printk(KERN_ERR "cco: failed to enqueue packet\n");
+        err = -EAGAIN;
+        goto undo_create_packet;
+    }
+
+    return 0;
+
+undo_create_packet:
+    kfree_skb(skb);
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
+
 static int create_cco_packet(const char * dest_mac, uint8_t msg_type,
                              struct sk_buff **skb_out)
 {
@@ -114,6 +138,9 @@ static int create_cco_packet(const char * dest_mac, uint8_t msg_type,
         break;
     case HANDSHAKE_RESPONSE:
         len += sizeof(HandshakeResponseMsg_t);
+        break;
+    case HEARTBEAT:
+        len += sizeof(HeartbeatMsg_t);
         break;
     default:
         printk(KERN_ERR "cco: \"%d\" is not a valid msgtype\n", msg_type);
