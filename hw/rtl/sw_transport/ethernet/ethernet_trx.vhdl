@@ -24,11 +24,10 @@ architecture behavioral of ethernet_trx is
         SESSION_OPEN,
         SEND_HEARTBEAT
     );
-    signal   session_state : SessionState_t   := WAIT_FOR_HANDSHAKE_REQUEST;
-    signal   prev_rx_valid : std_logic        := '0';
-    signal   counter       : natural          := 0;
-    signal   session_id    : unsigned(0 to 7) := to_unsigned(0, 8);
-    constant CLKS_PER_SEC  : natural          := 50000000;
+    signal   session_state : SessionState_t := WAIT_FOR_HANDSHAKE_REQUEST;
+    signal   prev_rx_valid : std_logic      := '0';
+    signal   counter       : natural        := 0;
+    constant CLKS_PER_SEC  : natural        := 50000000;
 
     -- 50MHz reference clk that drives ethernet PHY
     component ip_clk_wizard_ethernet is
@@ -50,7 +49,6 @@ architecture behavioral of ethernet_trx is
 begin
 
     session_sm : process(ref_clk)
-        variable hs_req : HandshakeRequestMsg_t;
     begin
         if rising_edge(ref_clk) then
             case session_state is
@@ -59,9 +57,6 @@ begin
                 if prev_rx_valid = '0' and rx_valid = '1' and
                    is_valid_handshake_request(rx_frame)
                 then
-                    hs_req := get_handshake_request(rx_frame);
-                    session_id <= hs_req.session_id;
-
                     counter <= 0;
                     session_state <= SEND_HANDSHAKE_RESPONSE;
 
@@ -78,14 +73,17 @@ begin
                     tx_valid <= '0';
                     counter <= 1;
                 else
-                    tx_frame.length <= X"0005";
+                    tx_frame.length <= X"0006";
                     tx_frame.payload <= (others => '0');
                     tx_frame.payload(
                         0 to (4 * BITS_PER_BYTE) - 1
                     ) <= CCO_MAGIC;
                     tx_frame.payload(
                         (4 * BITS_PER_BYTE) to (5 * BITS_PER_BYTE) - 1
-                    ) <= AnnounceMsg_t'msg_type;
+                    ) <= SessionCtlMsg_t'msg_type;
+                    tx_frame.payload(
+                        (5 * BITS_PER_BYTE) to (6 * BITS_PER_BYTE) - 1
+                    ) <= SessionCtl_Announce;
                     tx_valid <= '1';
 
                     counter <= 0;
@@ -104,10 +102,10 @@ begin
                     ) <= CCO_MAGIC;
                     tx_frame.payload(
                         (4 * BITS_PER_BYTE) to (5 * BITS_PER_BYTE) - 1
-                    ) <= HandshakeResponseMsg_t'msg_type;
+                    ) <= SessionCtlMsg_t'msg_type;
                     tx_frame.payload(
                         (5 * BITS_PER_BYTE) to (6 * BITS_PER_BYTE) - 1
-                    ) <= std_logic_vector(session_id);
+                    ) <= SessionCtl_HandshakeResponse;
                     tx_valid <= '1';
 
                     counter <= 0;

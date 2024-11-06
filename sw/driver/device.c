@@ -152,10 +152,10 @@ static int dd_impl(void * data)
     while (!kthread_should_stop()) {
         if (kfifo_get(&dd_fifo, &skb)) {
             struct ethhdr *hdr = eth_hdr(skb);
-            Msg_t *msg = get_cco_msg(skb);
+            SessionCtlMsg_t *msg = (SessionCtlMsg_t *)get_cco_msg(skb)->payload;
             switch (msg->msg_type) {
             case ANNOUNCE:
-                send_handshake_request(hdr->h_source, 0);
+                send_handshake_request(hdr->h_source);
                 break;
             case HANDSHAKE_RESPONSE:
                 int err = cco_register_device();

@@ -70,18 +70,18 @@ void cco_ethernet_exit(void)
 static int create_cco_packet(const char * dest_mac, uint8_t msg_type,
                              struct sk_buff **skb_out);
 
-int send_handshake_request(unsigned char *dest_mac, uint8_t session_id)
+int send_handshake_request(unsigned char *dest_mac)
 {
     int err;
 
     struct sk_buff *skb;
-    err = create_cco_packet(dest_mac, HANDSHAKE_REQUEST, &skb);
+    err = create_cco_packet(dest_mac, SESSION_CTL, &skb);
     if (err < 0)
         goto exit_error;
 
-    HandshakeRequestMsg_t *msg;
-    msg = (HandshakeRequestMsg_t *)(skb->data + sizeof(Msg_t));
-    msg->session_id = session_id;
+    SessionCtlMsg_t *msg;
+    msg = (SessionCtlMsg_t *)(skb->data + sizeof(Msg_t));
+    msg->msg_type = HANDSHAKE_REQUEST;
 
     if (dev_queue_xmit(skb) != NET_XMIT_SUCCESS) {
         printk(KERN_ERR "cco: failed to enqueue packet\n");
@@ -103,9 +103,13 @@ int send_heartbeat(unsigned char *dest_mac)
     int err;
 
     struct sk_buff *skb;
-    err = create_cco_packet(dest_mac, HEARTBEAT, &skb);
+    err = create_cco_packet(dest_mac, SESSION_CTL, &skb);
     if (err < 0)
         goto exit_error;
+
+    SessionCtlMsg_t *msg;
+    msg = (SessionCtlMsg_t *)(skb->data + sizeof(Msg_t));
+    msg->msg_type = HEARTBEAT;
 
     if (dev_queue_xmit(skb) != NET_XMIT_SUCCESS) {
         printk(KERN_ERR "cco: failed to enqueue packet\n");
@@ -130,17 +134,8 @@ static int create_cco_packet(const char * dest_mac, uint8_t msg_type,
     // Calculate payload size based on msg_type
     unsigned len = sizeof(Msg_t);
     switch (msg_type) {
-    case ANNOUNCE:
-        len += sizeof(AnnounceMsg_t);
-        break;
-    case HANDSHAKE_REQUEST:
-        len += sizeof(HandshakeRequestMsg_t);
-        break;
-    case HANDSHAKE_RESPONSE:
-        len += sizeof(HandshakeResponseMsg_t);
-        break;
-    case HEARTBEAT:
-        len += sizeof(HeartbeatMsg_t);
+    case SESSION_CTL:
+        len += sizeof(SessionCtlMsg_t);
         break;
     default:
         printk(KERN_ERR "cco: \"%d\" is not a valid msgtype\n", msg_type);
@@ -188,8 +183,7 @@ static int packet_recv(struct sk_buff *skb, struct net_device *dev,
 
     Msg_t *msg = get_cco_msg(skb);
     switch (msg->msg_type) {
-    case ANNOUNCE:
-    case HANDSHAKE_RESPONSE:
+    case SESSION_CTL:
         handle_session_ctl_msg(skb);
         break;
 
