@@ -24,10 +24,10 @@ struct cco_device {
 int cco_register_driver(void);
 void cco_unregister_driver(void);
 
-// Device discovery
-int cco_device_discovery_init(void);
-void cco_device_discovery_exit(void);
+// Session management
 void handle_session_ctl_msg(struct sk_buff *skb);
+int cco_session_manager_init(void);
+void cco_session_manager_exit(void);
 
 // Device management
 void cco_unregister_devices(void);

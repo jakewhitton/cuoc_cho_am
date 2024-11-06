@@ -116,41 +116,29 @@ static struct platform_driver cco_driver = {
 /*============================================================================*/
 
 
-/*==============================Device discovery==============================*/
+/*=============================Session management=============================*/
 // Defined in "Device management" section
 static int cco_register_device(void);
 
-#define DD_KFIFO_SIZE 8
-DEFINE_KFIFO(dd_fifo, struct sk_buff *, DD_KFIFO_SIZE);
-static struct task_struct *dd_task;
+static struct task_struct *sm_task;
 
-static int dd_impl(void * data);
+#define SM_FIFO_SIZE 8
+DEFINE_KFIFO(sm_fifo, struct sk_buff *, SM_FIFO_SIZE);
 
-int cco_device_discovery_init(void)
+void handle_session_ctl_msg(struct sk_buff *skb)
 {
-    int err;
-
-    // Set up device discovery kthread
-    struct task_struct *task = kthread_run(dd_impl, NULL, "cco_discover");
-    if (IS_ERR(task)) {
-        printk(KERN_ERR "cco: device discovery kthread could not be created\n");
-        err = -EAGAIN;
-        goto exit_error;
-    }
-    dd_task = task;
-
-    return 0;
-
-exit_error:
-    CCO_LOG_FUNCTION_FAILURE(err);
-    return err;
+    // Because the ethernet frame receive callback runs in an interrupt-like
+    // context, we just pass along message into fifo so the session manager
+    // kthread can take its time in handling the message
+    if (!kfifo_put(&sm_fifo, skb))
+        kfree_skb(skb);
 }
 
-static int dd_impl(void * data)
+static int session_manager(void * data)
 {
     struct sk_buff *skb;
     while (!kthread_should_stop()) {
-        if (kfifo_get(&dd_fifo, &skb)) {
+        if (kfifo_get(&sm_fifo, &skb)) {
             struct ethhdr *hdr = eth_hdr(skb);
             SessionCtlMsg_t *msg = (SessionCtlMsg_t *)get_cco_msg(skb)->payload;
             switch (msg->msg_type) {
@@ -174,23 +162,36 @@ static int dd_impl(void * data)
     return 0;
 }
 
-void cco_device_discovery_exit(void)
+int cco_session_manager_init(void)
 {
-    if (dd_task) {
-        if (kthread_stop(dd_task) < 0)
-            printk(KERN_ERR "cco: could not stop device discovery kthread\n");
-        dd_task = NULL;
+    int err;
+
+    // Set up session manager kthread
+    struct task_struct *task;
+    task = kthread_run(session_manager, NULL, "cco_session_manager");
+    if (IS_ERR(task)) {
+        printk(KERN_ERR "cco: session manager kthread could not be created\n");
+        err = -EAGAIN;
+        goto exit_error;
+    }
+    sm_task = task;
+
+    return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
+
+void cco_session_manager_exit(void)
+{
+    if (sm_task) {
+        if (kthread_stop(sm_task) < 0)
+            printk(KERN_ERR "cco: could not stop session manager kthread\n");
+        sm_task = NULL;
     }
 }
 
-void handle_session_ctl_msg(struct sk_buff *skb)
-{
-    // Because the ethernet frame receive callback runs in an interrupt-like
-    // context, we just pass along message into kfifo so the device discovery
-    // kthread can take its time in handling the message
-    if (!kfifo_put(&dd_fifo, skb))
-        kfree_skb(skb);
-}
 /*============================================================================*/
 
 
