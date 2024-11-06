@@ -4,7 +4,6 @@
 #include <linux/if_packet.h>
 #include <linux/ip.h> 
 #include <linux/kernel.h>
-#include <linux/kfifo.h>
 #include <linux/netdevice.h>
 #include <linux/sched.h>
 #include <linux/skbuff.h>
@@ -81,7 +80,7 @@ int send_handshake_request(unsigned char *dest_mac)
 
     SessionCtlMsg_t *msg;
     msg = (SessionCtlMsg_t *)(skb->data + sizeof(Msg_t));
-    msg->msg_type = HANDSHAKE_REQUEST;
+    msg->msg_type = SESSION_CTL_HANDSHAKE_REQUEST;
 
     if (dev_queue_xmit(skb) != NET_XMIT_SUCCESS) {
         printk(KERN_ERR "cco: failed to enqueue packet\n");
@@ -109,7 +108,7 @@ int send_heartbeat(unsigned char *dest_mac)
 
     SessionCtlMsg_t *msg;
     msg = (SessionCtlMsg_t *)(skb->data + sizeof(Msg_t));
-    msg->msg_type = HEARTBEAT;
+    msg->msg_type = SESSION_CTL_HEARTBEAT;
 
     if (dev_queue_xmit(skb) != NET_XMIT_SUCCESS) {
         printk(KERN_ERR "cco: failed to enqueue packet\n");

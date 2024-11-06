@@ -154,10 +154,10 @@ static int dd_impl(void * data)
             struct ethhdr *hdr = eth_hdr(skb);
             SessionCtlMsg_t *msg = (SessionCtlMsg_t *)get_cco_msg(skb)->payload;
             switch (msg->msg_type) {
-            case ANNOUNCE:
+            case SESSION_CTL_ANNOUNCE:
                 send_handshake_request(hdr->h_source);
                 break;
-            case HANDSHAKE_RESPONSE:
+            case SESSION_CTL_HANDSHAKE_RESPONSE:
                 int err = cco_register_device();
                 if (err < 0) {
                     printk(KERN_INFO "cco: create device failed\n");
