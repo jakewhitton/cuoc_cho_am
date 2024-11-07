@@ -41,6 +41,7 @@ package protocol is
     constant SessionCtl_HandshakeRequest  : MsgType_t := X"01";
     constant SessionCtl_HandshakeResponse : MsgType_t := X"02";
     constant SessionCtl_Heartbeat         : MsgType_t := X"03";
+    constant SessionCtl_Close             : MsgType_t := X"04";
 
     function is_valid_session_ctl_msg(
         frame : Frame_t;

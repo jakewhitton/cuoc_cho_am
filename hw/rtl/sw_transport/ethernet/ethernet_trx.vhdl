@@ -16,18 +16,24 @@ end ethernet_trx;
 
 architecture behavioral of ethernet_trx is
 
+    constant CLKS_PER_SEC        : natural        := 50000000;
+    constant ANNOUNCE_INTERVAL   : natural        := 1;
+    constant HEARTBEAT_INTERVAL  : natural        := 1;
+    constant TIMEOUT_INTERVAL    : natural        := 3 * HEARTBEAT_INTERVAL;
+
     -- Session state
     type SessionState_t is (
         WAIT_FOR_HANDSHAKE_REQUEST,
         SEND_ANNOUNCE,
         SEND_HANDSHAKE_RESPONSE,
         SESSION_OPEN,
-        SEND_HEARTBEAT
+        SEND_HEARTBEAT,
+        SEND_CLOSE
     );
-    signal   session_state : SessionState_t := WAIT_FOR_HANDSHAKE_REQUEST;
-    signal   prev_rx_valid : std_logic      := '0';
-    signal   counter       : natural        := 0;
-    constant CLKS_PER_SEC  : natural        := 50000000;
+    signal session_state : SessionState_t := WAIT_FOR_HANDSHAKE_REQUEST;
+    signal prev_rx_valid : std_logic      := '0';
+    signal counter       : natural        := 0;
+    signal elapsed       : natural        := 0;
 
     -- 50MHz reference clk that drives ethernet PHY
     component ip_clk_wizard_ethernet is
@@ -61,7 +67,7 @@ begin
                     session_state <= SEND_HANDSHAKE_RESPONSE;
 
                 -- Otherwise, send an announce message once per second
-                elsif counter < CLKS_PER_SEC then
+                elsif counter < ANNOUNCE_INTERVAL * CLKS_PER_SEC then
                     counter <= counter + 1;
                 else
                     counter <= 0;
@@ -109,26 +115,90 @@ begin
                     tx_valid <= '1';
 
                     counter <= 0;
+                    elapsed <= 0;
                     session_state <= SESSION_OPEN;
                 end if;
 
             when SESSION_OPEN =>
-                -- TODO
+                -- Send a heartbeat once per second
+                if counter < HEARTBEAT_INTERVAL * CLKS_PER_SEC then
+                    counter <= counter + 1;
+                else
+                    counter <= 0;
+                    session_state <= SEND_HEARTBEAT;
+                end if;
+
+                -- If we've received a CCO msg, reset elapsed timer
+                if prev_rx_valid = '0' and rx_valid = '1' and
+                   is_valid_msg(rx_frame)
+                then
+                    elapsed <= 0;
+
+                -- Otherwise, close session if we've exceeded heartbeat timeout
+                elsif elapsed < TIMEOUT_INTERVAL * CLKS_PER_SEC then
+                    elapsed <= elapsed + 1;
+                else
+                    elapsed <= 0;
+                    counter <= 0;
+                    session_state <= SEND_CLOSE;
+                end if;
 
             when SEND_HEARTBEAT =>
-                -- TODO
+                if counter = 0 then
+                    tx_valid <= '0';
+                    counter <= 1;
+                else
+                    tx_frame.length <= X"0006";
+                    tx_frame.payload <= (others => '0');
+                    tx_frame.payload(
+                        0 to (4 * BITS_PER_BYTE) - 1
+                    ) <= CCO_MAGIC;
+                    tx_frame.payload(
+                        (4 * BITS_PER_BYTE) to (5 * BITS_PER_BYTE) - 1
+                    ) <= SessionCtlMsg_t'msg_type;
+                    tx_frame.payload(
+                        (5 * BITS_PER_BYTE) to (6 * BITS_PER_BYTE) - 1
+                    ) <= SessionCtl_Heartbeat;
+                    tx_valid <= '1';
+
+                    counter <= 0;
+                    session_state <= SESSION_OPEN;
+                end if;
+
+            when SEND_CLOSE =>
+                if counter = 0 then
+                    tx_valid <= '0';
+                    counter <= 1;
+                else
+                    tx_frame.length <= X"0006";
+                    tx_frame.payload <= (others => '0');
+                    tx_frame.payload(
+                        0 to (4 * BITS_PER_BYTE) - 1
+                    ) <= CCO_MAGIC;
+                    tx_frame.payload(
+                        (4 * BITS_PER_BYTE) to (5 * BITS_PER_BYTE) - 1
+                    ) <= SessionCtlMsg_t'msg_type;
+                    tx_frame.payload(
+                        (5 * BITS_PER_BYTE) to (6 * BITS_PER_BYTE) - 1
+                    ) <= SessionCtl_Close;
+                    tx_valid <= '1';
+
+                    counter <= 0;
+                    session_state <= WAIT_FOR_HANDSHAKE_REQUEST;
+                end if;
             end case;
             prev_rx_valid <= rx_valid;
         end if;
     end process;
     tx_frame.dest_mac <= X"FFFFFFFFFFFF";
     tx_frame.src_mac  <= X"123456789ABC";
-    with session_state select o_leds(15 downto 11) <=
-        "10000" when WAIT_FOR_HANDSHAKE_REQUEST,
-        "01000" when SEND_ANNOUNCE,
-        "00100" when SEND_HANDSHAKE_RESPONSE,
-        "00010" when SESSION_OPEN,
-        "00001" when SEND_HEARTBEAT;
+    with session_state select o_leds(15 downto 10) <=
+        "100000" when WAIT_FOR_HANDSHAKE_REQUEST,
+        "010000" when SEND_ANNOUNCE,
+        "001000" when SEND_HANDSHAKE_RESPONSE,
+        "000100" when SESSION_OPEN,
+        "000010" when SEND_HEARTBEAT,
+        "000001" when SEND_CLOSE;
 
     -- Derives 50MHz clk from 100MHz clk for feeding into PHY
     generate_50mhz_ref_clk : ip_clk_wizard_ethernet

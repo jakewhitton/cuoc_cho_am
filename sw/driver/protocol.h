@@ -24,7 +24,8 @@ enum SessionCtlMsgType_t
     SESSION_CTL_ANNOUNCE           = 0,
     SESSION_CTL_HANDSHAKE_REQUEST  = 1,
     SESSION_CTL_HANDSHAKE_RESPONSE = 2,
-    SESSION_CTL_HEARTBEAT          = 3
+    SESSION_CTL_HEARTBEAT          = 3,
+    SESSION_CTL_CLOSE              = 4
 };
 
 typedef struct
@@ -64,7 +65,7 @@ static inline int is_valid_cco_packet(struct sk_buff *skb)
         // Validate session ctl msg_type
         SessionCtlMsg_t *session_msg = (SessionCtlMsg_t *)msg->payload;
         if (session_msg->msg_type < SESSION_CTL_ANNOUNCE ||
-            session_msg->msg_type > SESSION_CTL_HEARTBEAT)
+            session_msg->msg_type > SESSION_CTL_CLOSE)
         {
             printk(KERN_ERR "cco: invalid session ctl msg_type \"%d\"\n",
                    session_msg->msg_type);

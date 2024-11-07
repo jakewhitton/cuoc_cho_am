@@ -117,10 +117,11 @@ static struct platform_driver cco_driver = {
 
 
 /*=============================Session management=============================*/
+static struct task_struct *sm_task;
+
 // Defined in "Device management" section
 static int cco_register_device(void);
 
-static struct task_struct *sm_task;
 
 static int session_manager(void * data)
 {
@@ -140,6 +141,9 @@ static int session_manager(void * data)
                 } else {
                     printk(KERN_INFO "cco: create device succeeded!\n");
                 }
+                break;
+            case SESSION_CTL_CLOSE:
+                printk(KERN_INFO "cco: fpga closed session\n");
                 break;
             }
             kfree_skb(skb);
