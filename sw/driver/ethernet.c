@@ -6,7 +6,6 @@
 #include <linux/kernel.h>
 #include <linux/netdevice.h>
 #include <linux/sched.h>
-#include <linux/skbuff.h>
 #include <linux/slab.h>
 
 #include "device.h"
@@ -34,6 +33,8 @@ int cco_ethernet_init(void)
         err = -ENODEV;
         goto exit_error;
     }
+
+    INIT_KFIFO(session_ctl_fifo);
 
     proto = kzalloc(sizeof(*proto), GFP_KERNEL);
     if (!proto) {
@@ -66,7 +67,7 @@ void cco_ethernet_exit(void)
 
 
 /*===============================Packet sending===============================*/
-static int create_cco_packet(const char * dest_mac, uint8_t msg_type,
+static int create_cco_packet(const char *dest_mac, uint8_t msg_type,
                              struct sk_buff **skb_out);
 
 int send_handshake_request(unsigned char *dest_mac)
@@ -125,7 +126,7 @@ exit_error:
     return err;
 }
 
-static int create_cco_packet(const char * dest_mac, uint8_t msg_type,
+static int create_cco_packet(const char *dest_mac, uint8_t msg_type,
                              struct sk_buff **skb_out)
 {
     int err;
@@ -172,6 +173,8 @@ exit_error:
 
 
 /*==============================Packet receiving==============================*/
+SessionCtlFifo_t session_ctl_fifo;
+
 static int packet_recv(struct sk_buff *skb, struct net_device *dev,
                        struct packet_type *pt, struct net_device *orig_dev)
 {
@@ -183,7 +186,8 @@ static int packet_recv(struct sk_buff *skb, struct net_device *dev,
     Msg_t *msg = get_cco_msg(skb);
     switch (msg->msg_type) {
     case SESSION_CTL:
-        handle_session_ctl_msg(skb);
+        if (!kfifo_put(&session_ctl_fifo, skb))
+            kfree_skb(skb);
         break;
 
     default:

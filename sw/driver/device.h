@@ -25,7 +25,6 @@ int cco_register_driver(void);
 void cco_unregister_driver(void);
 
 // Session management
-void handle_session_ctl_msg(struct sk_buff *skb);
 int cco_session_manager_init(void);
 void cco_session_manager_exit(void);
 

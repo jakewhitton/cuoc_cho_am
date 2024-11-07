@@ -122,23 +122,11 @@ static int cco_register_device(void);
 
 static struct task_struct *sm_task;
 
-#define SM_FIFO_SIZE 8
-DEFINE_KFIFO(sm_fifo, struct sk_buff *, SM_FIFO_SIZE);
-
-void handle_session_ctl_msg(struct sk_buff *skb)
-{
-    // Because the ethernet frame receive callback runs in an interrupt-like
-    // context, we just pass along message into fifo so the session manager
-    // kthread can take its time in handling the message
-    if (!kfifo_put(&sm_fifo, skb))
-        kfree_skb(skb);
-}
-
 static int session_manager(void * data)
 {
     struct sk_buff *skb;
     while (!kthread_should_stop()) {
-        if (kfifo_get(&sm_fifo, &skb)) {
+        if (kfifo_get(&session_ctl_fifo, &skb)) {
             struct ethhdr *hdr = eth_hdr(skb);
             SessionCtlMsg_t *msg = (SessionCtlMsg_t *)get_cco_msg(skb)->payload;
             switch (msg->msg_type) {
