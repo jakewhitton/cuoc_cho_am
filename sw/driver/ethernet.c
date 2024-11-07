@@ -80,7 +80,7 @@ int send_handshake_request(unsigned char *dest_mac)
         goto exit_error;
 
     SessionCtlMsg_t *msg;
-    msg = (SessionCtlMsg_t *)(skb->data + sizeof(Msg_t));
+    msg = (SessionCtlMsg_t *)skb_put(skb, sizeof(SessionCtlMsg_t));
     msg->msg_type = SESSION_CTL_HANDSHAKE_REQUEST;
 
     if (dev_queue_xmit(skb) != NET_XMIT_SUCCESS) {
@@ -108,7 +108,7 @@ int send_heartbeat(unsigned char *dest_mac)
         goto exit_error;
 
     SessionCtlMsg_t *msg;
-    msg = (SessionCtlMsg_t *)(skb->data + sizeof(Msg_t));
+    msg = (SessionCtlMsg_t *)skb_put(skb, sizeof(SessionCtlMsg_t));
     msg->msg_type = SESSION_CTL_HEARTBEAT;
 
     if (dev_queue_xmit(skb) != NET_XMIT_SUCCESS) {
@@ -157,7 +157,7 @@ static int create_cco_packet(const char *dest_mac, uint8_t msg_type,
     dev_hard_header(skb, netdev, ETH_P_802_3, dest_mac, netdev->dev_addr, len);
 
     // Create cco header
-    Msg_t *msg = (Msg_t *)skb_put(skb, len);
+    Msg_t *msg = (Msg_t *)skb_put(skb, sizeof(Msg_t));
     msg->magic = htonl(CCO_MAGIC);
     msg->msg_type = msg_type;
 
