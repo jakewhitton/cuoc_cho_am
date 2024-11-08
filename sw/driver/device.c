@@ -245,6 +245,13 @@ cco_create_session(unsigned char *mac, uint8_t generation_id)
         memcpy(session->mac, mac, ETH_ALEN);
         session->generation_id = generation_id;
 
+        ktime_t now = ktime_get();
+        session->ts_last_recv = now;
+        session->ts_last_send = now;
+
+        printk(KERN_INFO "cco: [%pM, %d]: session opened\n",
+               session->mac, session->generation_id);
+
         sessions[i] = session;
         return session;
     }
@@ -252,7 +259,7 @@ cco_create_session(unsigned char *mac, uint8_t generation_id)
     return NULL;
 }
 
-static void cco_close_session(struct cco_session *session)
+static void cco_close_session(struct cco_session *session, const char *reason)
 {
     for (unsigned i = 0; i < ARRAY_SIZE(sessions); ++i) {
         if (sessions[i] == session)
@@ -264,6 +271,13 @@ static void cco_close_session(struct cco_session *session)
         cco_unregister_device(session->dev);
     }
 
+    printk(KERN_INFO "cco: [%pM, %d]: session closed",
+           session->mac, session->generation_id);
+    if (reason) {
+        printk(KERN_CONT ", reason=\"%s\"", reason);
+    }
+    printk(KERN_CONT "\n");
+
     kfree(session);
 }
 
@@ -273,7 +287,7 @@ void cco_close_sessions(void)
         struct cco_session *session = sessions[i];
         if (session) {
             send_close(session);
-            cco_close_session(session);
+            cco_close_session(session, NULL);
         }
     }
 }
@@ -294,8 +308,6 @@ static void handle_session_ctl_msg(struct sk_buff *skb)
                    "gen_id=%d\n", hdr->h_source, msg->generation_id);
             return;
         }
-        printk(KERN_INFO "cco: [%pM, %d]: session opened\n",
-                hdr->h_source, msg->generation_id);
     }
 
     SessionCtlMsg_t *session_msg = (SessionCtlMsg_t *)msg->payload;
@@ -307,9 +319,8 @@ static void handle_session_ctl_msg(struct sk_buff *skb)
     case SESSION_CTL_HANDSHAKE_RESPONSE:
         struct cco_device *dev = cco_register_device(session->id);
         if (!dev) {
-            printk(KERN_ERR "cco: failed to register cco_device\n");
             send_close(session);
-            cco_close_session(session);
+            cco_close_session(session, "failed to register cco_device");
             return;
         }
         printk(KERN_ERR "cco: [%pM, %d]: device created w/ id=%d\n",
@@ -318,9 +329,7 @@ static void handle_session_ctl_msg(struct sk_buff *skb)
         break;
 
     case SESSION_CTL_CLOSE:
-        printk(KERN_ERR "cco: [%pM, %d]: session closed by FPGA\n",
-                hdr->h_source, msg->generation_id);
-        cco_close_session(session);
+        cco_close_session(session, "FPGA closed session");
         break;
     }
 }
@@ -329,10 +338,35 @@ static int session_manager(void * data)
 {
     struct sk_buff *skb;
     while (!kthread_should_stop()) {
-        if (kfifo_get(&session_ctl_fifo, &skb)) {
+
+        // Handle any pending session ctl msgs
+        while (kfifo_get(&session_ctl_fifo, &skb)) {
             handle_session_ctl_msg(skb);
             kfree_skb(skb);
         }
+
+        // Close any sessions that have exceeded heartbeat timout
+        for (unsigned i = 0; i < ARRAY_SIZE(sessions); ++i) {
+            struct cco_session *session = sessions[i];
+            if (!session)
+                continue;
+
+            ktime_t now = ktime_get();
+            if (now - session->ts_last_recv > CCO_TIMEOUT_INTERVAL)
+                cco_close_session(session, "heartbeat timeout");
+        }
+
+        // Send heartbeat on any session that needs it
+        for (unsigned i = 0; i < ARRAY_SIZE(sessions); ++i) {
+            struct cco_session *session = sessions[i];
+            if (!session)
+                continue;
+
+            ktime_t now = ktime_get();
+            if (now - session->ts_last_send > CCO_HEARTBEAT_INTERVAL)
+                send_heartbeat(session);
+        }
+
         msleep(100);
     }
 

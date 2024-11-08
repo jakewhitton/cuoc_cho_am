@@ -4,6 +4,10 @@
 #include <linux/if_ether.h>
 #include <linux/skbuff.h>
 
+#define NS_PER_SEC             ((ktime_t)1000000000)
+#define CCO_HEARTBEAT_INTERVAL ((ktime_t)1 * NS_PER_SEC)
+#define CCO_TIMEOUT_INTERVAL   ((ktime_t)3 * CCO_HEARTBEAT_INTERVAL)
+
 // First 32 bits of the MD5 hash of the string "cuoc cho am"
 #define CCO_MAGIC 0x83f8ddef
 

@@ -3,6 +3,7 @@
 
 #include <linux/platform_device.h>
 #include <linux/skbuff.h>
+#include <linux/timekeeping.h>
 #include <sound/core.h>
 
 #include "mixer.h"
@@ -22,6 +23,8 @@ struct cco_session {
     int id;
     unsigned char mac[ETH_ALEN];
     uint8_t generation_id;
+    ktime_t ts_last_recv;
+    ktime_t ts_last_send;
 };
 
 #define pdev_to_cco(pdev) container_of((pdev), struct cco_device, pdev)

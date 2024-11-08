@@ -7,6 +7,7 @@
 #include <linux/netdevice.h>
 #include <linux/sched.h>
 #include <linux/slab.h>
+#include <linux/timekeeping.h>
 
 #include "device.h"
 #include "log.h"
@@ -70,6 +71,8 @@ void cco_ethernet_exit(void)
 static int create_cco_packet(struct cco_session *session, uint8_t msg_type,
                              struct sk_buff **skb_out);
 
+static int packet_send(struct cco_session *session, struct sk_buff *skb);
+
 int send_handshake_request(struct cco_session *session)
 {
     int err;
@@ -83,16 +86,12 @@ int send_handshake_request(struct cco_session *session)
     msg = (SessionCtlMsg_t *)skb_put(skb, sizeof(SessionCtlMsg_t));
     msg->msg_type = SESSION_CTL_HANDSHAKE_REQUEST;
 
-    if (dev_queue_xmit(skb) != NET_XMIT_SUCCESS) {
-        printk(KERN_ERR "cco: failed to enqueue packet\n");
-        err = -EAGAIN;
-        goto undo_create_packet;
-    }
+    err = packet_send(session, skb);
+    if (err < 0)
+        goto exit_error;
 
     return 0;
 
-undo_create_packet:
-    kfree_skb(skb);
 exit_error:
     CCO_LOG_FUNCTION_FAILURE(err);
     return err;
@@ -111,16 +110,12 @@ int send_heartbeat(struct cco_session *session)
     msg = (SessionCtlMsg_t *)skb_put(skb, sizeof(SessionCtlMsg_t));
     msg->msg_type = SESSION_CTL_HEARTBEAT;
 
-    if (dev_queue_xmit(skb) != NET_XMIT_SUCCESS) {
-        printk(KERN_ERR "cco: failed to enqueue packet\n");
-        err = -EAGAIN;
-        goto undo_create_packet;
-    }
+    err = packet_send(session, skb);
+    if (err < 0)
+        goto exit_error;
 
     return 0;
 
-undo_create_packet:
-    kfree_skb(skb);
 exit_error:
     CCO_LOG_FUNCTION_FAILURE(err);
     return err;
@@ -139,16 +134,12 @@ int send_close(struct cco_session *session)
     msg = (SessionCtlMsg_t *)skb_put(skb, sizeof(SessionCtlMsg_t));
     msg->msg_type = SESSION_CTL_CLOSE;
 
-    if (dev_queue_xmit(skb) != NET_XMIT_SUCCESS) {
-        printk(KERN_ERR "cco: failed to enqueue packet\n");
-        err = -EAGAIN;
-        goto undo_create_packet;
-    }
+    err = packet_send(session, skb);
+    if (err < 0)
+        goto exit_error;
 
     return 0;
 
-undo_create_packet:
-    kfree_skb(skb);
 exit_error:
     CCO_LOG_FUNCTION_FAILURE(err);
     return err;
@@ -198,6 +189,27 @@ exit_error:
     CCO_LOG_FUNCTION_FAILURE(err);
     return err;
 }
+
+static int packet_send(struct cco_session *session, struct sk_buff *skb)
+{
+    int err;
+
+    if (dev_queue_xmit(skb) != NET_XMIT_SUCCESS) {
+        printk(KERN_ERR "cco: failed to enqueue packet\n");
+        err = -EAGAIN;
+        kfree_skb(skb);
+        goto exit_error;
+    }
+
+    session->ts_last_send = ktime_get();
+
+    return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+
+}
 /*============================================================================*/
 
 
@@ -212,7 +224,15 @@ static int packet_recv(struct sk_buff *skb, struct net_device *dev,
         return 0;
     }
 
+    // Update recv timestamp for the session if it exists
+    struct ethhdr *hdr = eth_hdr(skb);
     Msg_t *msg = get_cco_msg(skb);
+    struct cco_session *session;
+    session = cco_get_session(hdr->h_source, msg->generation_id);
+    if (session) {
+        session->ts_last_recv = ktime_get();
+    }
+
     switch (msg->msg_type) {
     case SESSION_CTL:
         if (!kfifo_put(&session_ctl_fifo, skb))
