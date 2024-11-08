@@ -67,15 +67,15 @@ void cco_ethernet_exit(void)
 
 
 /*===============================Packet sending===============================*/
-static int create_cco_packet(const char *dest_mac, uint8_t msg_type,
-                             struct sk_buff **skb_out);
+static int create_cco_packet(const char *dest_mac, uint8_t generation_id,
+                             uint8_t msg_type, struct sk_buff **skb_out);
 
-int send_handshake_request(unsigned char *dest_mac)
+int send_handshake_request(unsigned char *dest_mac, uint8_t generation_id)
 {
     int err;
 
     struct sk_buff *skb;
-    err = create_cco_packet(dest_mac, SESSION_CTL, &skb);
+    err = create_cco_packet(dest_mac, generation_id, SESSION_CTL, &skb);
     if (err < 0)
         goto exit_error;
 
@@ -98,12 +98,12 @@ exit_error:
     return err;
 }
 
-int send_heartbeat(unsigned char *dest_mac)
+int send_heartbeat(unsigned char *dest_mac, uint8_t generation_id)
 {
     int err;
 
     struct sk_buff *skb;
-    err = create_cco_packet(dest_mac, SESSION_CTL, &skb);
+    err = create_cco_packet(dest_mac, generation_id, SESSION_CTL, &skb);
     if (err < 0)
         goto exit_error;
 
@@ -126,8 +126,8 @@ exit_error:
     return err;
 }
 
-static int create_cco_packet(const char *dest_mac, uint8_t msg_type,
-                             struct sk_buff **skb_out)
+static int create_cco_packet(const char *dest_mac, uint8_t generation_id,
+                             uint8_t msg_type, struct sk_buff **skb_out)
 {
     int err;
 

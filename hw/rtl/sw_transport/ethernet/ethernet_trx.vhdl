@@ -31,6 +31,7 @@ architecture behavioral of ethernet_trx is
         SEND_CLOSE
     );
     signal session_state : SessionState_t := WAIT_FOR_HANDSHAKE_REQUEST;
+    signal generation_id : GenerationId_t := to_unsigned(0, 8);
     signal prev_rx_valid : std_logic      := '0';
     signal counter       : natural        := 0;
     signal elapsed       : natural        := 0;
@@ -79,16 +80,19 @@ begin
                     tx_valid <= '0';
                     counter <= 1;
                 else
-                    tx_frame.length <= X"0006";
+                    tx_frame.length <= X"0007";
                     tx_frame.payload <= (others => '0');
                     tx_frame.payload(
                         0 to (4 * BITS_PER_BYTE) - 1
                     ) <= CCO_MAGIC;
                     tx_frame.payload(
                         (4 * BITS_PER_BYTE) to (5 * BITS_PER_BYTE) - 1
-                    ) <= SessionCtlMsg_t'msg_type;
+                    ) <= std_logic_vector(generation_id);
                     tx_frame.payload(
                         (5 * BITS_PER_BYTE) to (6 * BITS_PER_BYTE) - 1
+                    ) <= SessionCtlMsg_t'msg_type;
+                    tx_frame.payload(
+                        (6 * BITS_PER_BYTE) to (7 * BITS_PER_BYTE) - 1
                     ) <= SessionCtl_Announce;
                     tx_valid <= '1';
 
@@ -101,16 +105,19 @@ begin
                     tx_valid <= '0';
                     counter <= 1;
                 else
-                    tx_frame.length <= X"0006";
+                    tx_frame.length <= X"0007";
                     tx_frame.payload <= (others => '0');
                     tx_frame.payload(
                         0 to (4 * BITS_PER_BYTE) - 1
                     ) <= CCO_MAGIC;
                     tx_frame.payload(
                         (4 * BITS_PER_BYTE) to (5 * BITS_PER_BYTE) - 1
-                    ) <= SessionCtlMsg_t'msg_type;
+                    ) <= std_logic_vector(generation_id);
                     tx_frame.payload(
                         (5 * BITS_PER_BYTE) to (6 * BITS_PER_BYTE) - 1
+                    ) <= SessionCtlMsg_t'msg_type;
+                    tx_frame.payload(
+                        (6 * BITS_PER_BYTE) to (7 * BITS_PER_BYTE) - 1
                     ) <= SessionCtl_HandshakeResponse;
                     tx_valid <= '1';
 
@@ -148,16 +155,19 @@ begin
                     tx_valid <= '0';
                     counter <= 1;
                 else
-                    tx_frame.length <= X"0006";
+                    tx_frame.length <= X"0007";
                     tx_frame.payload <= (others => '0');
                     tx_frame.payload(
                         0 to (4 * BITS_PER_BYTE) - 1
                     ) <= CCO_MAGIC;
                     tx_frame.payload(
                         (4 * BITS_PER_BYTE) to (5 * BITS_PER_BYTE) - 1
-                    ) <= SessionCtlMsg_t'msg_type;
+                    ) <= std_logic_vector(generation_id);
                     tx_frame.payload(
                         (5 * BITS_PER_BYTE) to (6 * BITS_PER_BYTE) - 1
+                    ) <= SessionCtlMsg_t'msg_type;
+                    tx_frame.payload(
+                        (6 * BITS_PER_BYTE) to (7 * BITS_PER_BYTE) - 1
                     ) <= SessionCtl_Heartbeat;
                     tx_valid <= '1';
 
@@ -170,18 +180,27 @@ begin
                     tx_valid <= '0';
                     counter <= 1;
                 else
-                    tx_frame.length <= X"0006";
+                    tx_frame.length <= X"0007";
                     tx_frame.payload <= (others => '0');
                     tx_frame.payload(
                         0 to (4 * BITS_PER_BYTE) - 1
                     ) <= CCO_MAGIC;
                     tx_frame.payload(
                         (4 * BITS_PER_BYTE) to (5 * BITS_PER_BYTE) - 1
-                    ) <= SessionCtlMsg_t'msg_type;
+                    ) <= std_logic_vector(generation_id);
                     tx_frame.payload(
                         (5 * BITS_PER_BYTE) to (6 * BITS_PER_BYTE) - 1
+                    ) <= SessionCtlMsg_t'msg_type;
+                    tx_frame.payload(
+                        (6 * BITS_PER_BYTE) to (7 * BITS_PER_BYTE) - 1
                     ) <= SessionCtl_Close;
                     tx_valid <= '1';
+
+                    if generation_id < MAX_GENERATION_ID then
+                        generation_id <= generation_id + 1;
+                    else
+                        generation_id <= to_unsigned(0, 8);
+                    end if;
 
                     counter <= 0;
                     session_state <= WAIT_FOR_HANDSHAKE_REQUEST;

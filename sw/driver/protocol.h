@@ -15,6 +15,7 @@ enum MsgType_t
 typedef struct
 {
     uint32_t magic; // Should always be set to CCO_MAGIC
+    uint8_t generation_id;
     uint8_t msg_type;
     char payload[];
 } __attribute__((packed)) Msg_t;

@@ -10,8 +10,8 @@ int cco_ethernet_init(void);
 void cco_ethernet_exit(void);
 
 // Packet sending
-int send_handshake_request(unsigned char *dest_mac);
-int send_heartbeat(unsigned char *dest_mac);
+int send_handshake_request(unsigned char *dest_mac, uint8_t generation_id);
+int send_heartbeat(unsigned char *dest_mac, uint8_t generation_id);
 
 #define SESSION_CTL_FIFO_SIZE 8
 typedef STRUCT_KFIFO(struct sk_buff *, SESSION_CTL_FIFO_SIZE) SessionCtlFifo_t;

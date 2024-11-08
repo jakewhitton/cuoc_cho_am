@@ -7,6 +7,8 @@ library work;
 
 package protocol is
 
+    subtype GenerationId_t is unsigned(0 to BITS_PER_BYTE - 1);
+    constant MAX_GENERATION_ID : natural := 255;
     subtype MsgType_t is std_logic_vector(0 to BITS_PER_BYTE - 1);
     attribute size     : natural;
     attribute msg_type : MsgType_t;
@@ -15,10 +17,11 @@ package protocol is
     subtype Magic_t is std_logic_vector(0 to (4 * BITS_PER_BYTE) - 1);
     constant CCO_MAGIC : Magic_t := X"83F8DDEF";
     type Msg_t is record
-        magic    : Magic_t;
-        msg_type : MsgType_t;
+        magic         : Magic_t;
+        generation_id : GenerationId_t;
+        msg_type      : MsgType_t;
     end record;
-    attribute size of Msg_t : type is 5;
+    attribute size of Msg_t : type is 6;
 
     function is_valid_msg(
         frame : Frame_t;
@@ -86,8 +89,11 @@ package body protocol is
             magic => frame.payload(
                 0 to (4 * BITS_PER_BYTE) - 1
             ),
-            msg_type => frame.payload(
+            generation_id => unsigned(frame.payload(
                 (4 * BITS_PER_BYTE) to (5 * BITS_PER_BYTE) - 1
+            )),
+            msg_type => frame.payload(
+                (5 * BITS_PER_BYTE) to (6 * BITS_PER_BYTE) - 1
             )
         );
     end function;
@@ -122,7 +128,7 @@ package body protocol is
     begin
         return (
             msg_type => frame.payload(
-                (5 * BITS_PER_BYTE) to (6 * BITS_PER_BYTE) - 1
+                (6 * BITS_PER_BYTE) to (7 * BITS_PER_BYTE) - 1
             )
         );
     end function;

@@ -128,11 +128,42 @@ static int session_manager(void * data)
     struct sk_buff *skb;
     while (!kthread_should_stop()) {
         if (kfifo_get(&session_ctl_fifo, &skb)) {
+
+            // Extract sections of the packet
             struct ethhdr *hdr = eth_hdr(skb);
-            SessionCtlMsg_t *msg = (SessionCtlMsg_t *)get_cco_msg(skb)->payload;
+            Msg_t *msg = get_cco_msg(skb);
+            SessionCtlMsg_t *session_msg = (SessionCtlMsg_t *)msg->payload;
+
+            /*
+            const char *msg_type_str = NULL;
             switch (msg->msg_type) {
             case SESSION_CTL_ANNOUNCE:
-                send_handshake_request(hdr->h_source);
+                msg_type_str = "SESSION_CTL_ANNOUNCE";
+                break;
+            case SESSION_CTL_HANDSHAKE_REQUEST:
+                msg_type_str = "SESSION_CTL_HANDSHAKE_REQUEST";
+                break;
+            case SESSION_CTL_HANDSHAKE_RESPONSE:
+                msg_type_str = "SESSION_CTL_HANDSHAKE_RESPONSE";
+                break;
+            case SESSION_CTL_HEARTBEAT:
+                msg_type_str = "SESSION_CTL_HEARTBEAT";
+                break;
+            case SESSION_CTL_CLOSE:
+                msg_type_str = "SESSION_CTL_CLOSE";
+                break;
+            default:
+                msg_type_str = "<unknown>";
+                break;
+            }
+            printk(KERN_INFO "cco: recv'd SessionCtlMsg_t w/ msg_type=%d, "
+                   "msg_type=%s, generation_id=%d\n",
+                   msg->msg_type, msg_type_str, msg->generation_id);
+            */
+
+            switch (session_msg->msg_type) {
+            case SESSION_CTL_ANNOUNCE:
+                send_handshake_request(hdr->h_source, msg->generation_id);
                 break;
             case SESSION_CTL_HANDSHAKE_RESPONSE:
                 int err = cco_register_device();
