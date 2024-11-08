@@ -122,7 +122,6 @@ static struct task_struct *sm_task;
 // Defined in "Device management" section
 static int cco_register_device(void);
 
-
 static int session_manager(void * data)
 {
     struct sk_buff *skb;
@@ -133,33 +132,6 @@ static int session_manager(void * data)
             struct ethhdr *hdr = eth_hdr(skb);
             Msg_t *msg = get_cco_msg(skb);
             SessionCtlMsg_t *session_msg = (SessionCtlMsg_t *)msg->payload;
-
-            /*
-            const char *msg_type_str = NULL;
-            switch (msg->msg_type) {
-            case SESSION_CTL_ANNOUNCE:
-                msg_type_str = "SESSION_CTL_ANNOUNCE";
-                break;
-            case SESSION_CTL_HANDSHAKE_REQUEST:
-                msg_type_str = "SESSION_CTL_HANDSHAKE_REQUEST";
-                break;
-            case SESSION_CTL_HANDSHAKE_RESPONSE:
-                msg_type_str = "SESSION_CTL_HANDSHAKE_RESPONSE";
-                break;
-            case SESSION_CTL_HEARTBEAT:
-                msg_type_str = "SESSION_CTL_HEARTBEAT";
-                break;
-            case SESSION_CTL_CLOSE:
-                msg_type_str = "SESSION_CTL_CLOSE";
-                break;
-            default:
-                msg_type_str = "<unknown>";
-                break;
-            }
-            printk(KERN_INFO "cco: recv'd SessionCtlMsg_t w/ msg_type=%d, "
-                   "msg_type=%s, generation_id=%d\n",
-                   msg->msg_type, msg_type_str, msg->generation_id);
-            */
 
             switch (session_msg->msg_type) {
             case SESSION_CTL_ANNOUNCE:
