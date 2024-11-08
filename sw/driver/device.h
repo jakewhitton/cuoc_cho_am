@@ -17,6 +17,12 @@ struct cco_device {
     void *page[2];
 };
 
+struct cco_session {
+    struct cco_device *dev;
+    unsigned char mac[ETH_ALEN];
+    uint8_t generation_id;
+};
+
 #define pdev_to_cco(pdev) container_of((pdev), struct cco_device, pdev)
 #define dev_to_cco(dev) container_of((dev), struct cco_device, pdev.dev)
 
@@ -25,6 +31,7 @@ int cco_register_driver(void);
 void cco_unregister_driver(void);
 
 // Session management
+struct cco_session *get_cco_session(unsigned char *mac, uint8_t generation_id);
 int cco_session_manager_init(void);
 void cco_session_manager_exit(void);
 

@@ -67,15 +67,15 @@ void cco_ethernet_exit(void)
 
 
 /*===============================Packet sending===============================*/
-static int create_cco_packet(const char *dest_mac, uint8_t generation_id,
-                             uint8_t msg_type, struct sk_buff **skb_out);
+static int create_cco_packet(struct cco_session *session, uint8_t msg_type,
+                             struct sk_buff **skb_out);
 
-int send_handshake_request(unsigned char *dest_mac, uint8_t generation_id)
+int send_handshake_request(struct cco_session *session)
 {
     int err;
 
     struct sk_buff *skb;
-    err = create_cco_packet(dest_mac, generation_id, SESSION_CTL, &skb);
+    err = create_cco_packet(session, SESSION_CTL, &skb);
     if (err < 0)
         goto exit_error;
 
@@ -98,12 +98,12 @@ exit_error:
     return err;
 }
 
-int send_heartbeat(unsigned char *dest_mac, uint8_t generation_id)
+int send_heartbeat(struct cco_session *session)
 {
     int err;
 
     struct sk_buff *skb;
-    err = create_cco_packet(dest_mac, generation_id, SESSION_CTL, &skb);
+    err = create_cco_packet(session, SESSION_CTL, &skb);
     if (err < 0)
         goto exit_error;
 
@@ -126,8 +126,8 @@ exit_error:
     return err;
 }
 
-static int create_cco_packet(const char *dest_mac, uint8_t generation_id,
-                             uint8_t msg_type, struct sk_buff **skb_out)
+static int create_cco_packet(struct cco_session *session, uint8_t msg_type,
+                             struct sk_buff **skb_out)
 {
     int err;
 
@@ -154,11 +154,12 @@ static int create_cco_packet(const char *dest_mac, uint8_t generation_id,
 
     // Create 802.3 ethernet header
     skb_reserve(skb, ETH_HLEN);
-    dev_hard_header(skb, netdev, ETH_P_802_3, dest_mac, netdev->dev_addr, len);
+    dev_hard_header(skb, netdev, ETH_P_802_3, session->mac, netdev->dev_addr, len);
 
     // Create cco header
     Msg_t *msg = (Msg_t *)skb_put(skb, sizeof(Msg_t));
     msg->magic = htonl(CCO_MAGIC);
+    msg->generation_id = session->generation_id;
     msg->msg_type = msg_type;
 
     *skb_out = skb;

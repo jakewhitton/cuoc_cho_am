@@ -117,10 +117,46 @@ static struct platform_driver cco_driver = {
 
 
 /*=============================Session management=============================*/
+static struct cco_session *sessions[SNDRV_CARDS];
+
 static struct task_struct *sm_task;
 
 // Defined in "Device management" section
 static int cco_register_device(void);
+
+struct cco_session *get_cco_session(unsigned char *mac, uint8_t generation_id)
+{
+    for (unsigned i = 0; i < ARRAY_SIZE(sessions); ++i) {
+        struct cco_session *session = sessions[i];
+        if (!session)
+            continue;
+
+        if (memcmp(session->mac, mac, ETH_ALEN) == 0 &&
+            session->generation_id == generation_id)
+            return session;
+    }
+
+    return NULL;
+}
+
+static struct cco_session *
+create_cco_session(unsigned char *mac, uint8_t generation_id)
+{
+    for (unsigned i = 0; i < ARRAY_SIZE(sessions); ++i) {
+        struct cco_session *session = sessions[i];
+        if (session)
+            continue;
+
+        session = kzalloc(sizeof(*session), GFP_KERNEL);
+        memcpy(session->mac, mac, ETH_ALEN);
+        session->generation_id = generation_id;
+
+        sessions[i] = session;
+        return session;
+    }
+
+    return NULL;
+}
 
 static int session_manager(void * data)
 {
@@ -131,11 +167,25 @@ static int session_manager(void * data)
             // Extract sections of the packet
             struct ethhdr *hdr = eth_hdr(skb);
             Msg_t *msg = get_cco_msg(skb);
-            SessionCtlMsg_t *session_msg = (SessionCtlMsg_t *)msg->payload;
 
+            // Locate or create session
+            struct cco_session *session;
+            session = get_cco_session(hdr->h_source, msg->generation_id);
+            if (!session) {
+                session = create_cco_session(hdr->h_source, msg->generation_id);
+                if (!session) {
+                    printk(KERN_ERR "cco: failed to open session for mac=%pM, "
+                           "gen_id=%d\n", hdr->h_source, msg->generation_id);
+                    continue;
+                }
+                printk(KERN_ERR "cco: opened session for mac=%pM, gen_id=%d\n",
+                        session->mac, msg->generation_id);
+            }
+
+            SessionCtlMsg_t *session_msg = (SessionCtlMsg_t *)msg->payload;
             switch (session_msg->msg_type) {
             case SESSION_CTL_ANNOUNCE:
-                send_handshake_request(hdr->h_source, msg->generation_id);
+                send_handshake_request(session);
                 break;
             case SESSION_CTL_HANDSHAKE_RESPONSE:
                 int err = cco_register_device();
