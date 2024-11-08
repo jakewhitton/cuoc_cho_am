@@ -19,6 +19,7 @@ struct cco_device {
 
 struct cco_session {
     struct cco_device *dev;
+    int id;
     unsigned char mac[ETH_ALEN];
     uint8_t generation_id;
 };
@@ -31,11 +32,9 @@ int cco_register_driver(void);
 void cco_unregister_driver(void);
 
 // Session management
-struct cco_session *get_cco_session(unsigned char *mac, uint8_t generation_id);
+struct cco_session *cco_get_session(unsigned char *mac, uint8_t generation_id);
+void cco_close_sessions(void);
 int cco_session_manager_init(void);
 void cco_session_manager_exit(void);
-
-// Device management
-void cco_unregister_devices(void);
 
 #endif

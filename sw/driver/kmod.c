@@ -40,7 +40,7 @@ static void __exit kmod_exit(void)
 {
     cco_ethernet_exit();
     cco_session_manager_exit();
-    cco_unregister_devices();
+    cco_close_sessions();
     cco_unregister_driver();
 }
 

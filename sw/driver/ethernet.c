@@ -126,6 +126,34 @@ exit_error:
     return err;
 }
 
+int send_close(struct cco_session *session)
+{
+    int err;
+
+    struct sk_buff *skb;
+    err = create_cco_packet(session, SESSION_CTL, &skb);
+    if (err < 0)
+        goto exit_error;
+
+    SessionCtlMsg_t *msg;
+    msg = (SessionCtlMsg_t *)skb_put(skb, sizeof(SessionCtlMsg_t));
+    msg->msg_type = SESSION_CTL_CLOSE;
+
+    if (dev_queue_xmit(skb) != NET_XMIT_SUCCESS) {
+        printk(KERN_ERR "cco: failed to enqueue packet\n");
+        err = -EAGAIN;
+        goto undo_create_packet;
+    }
+
+    return 0;
+
+undo_create_packet:
+    kfree_skb(skb);
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
+
 static int create_cco_packet(struct cco_session *session, uint8_t msg_type,
                              struct sk_buff **skb_out)
 {
