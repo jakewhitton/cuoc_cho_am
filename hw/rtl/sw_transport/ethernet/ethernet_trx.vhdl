@@ -30,11 +30,12 @@ architecture behavioral of ethernet_trx is
         SEND_HEARTBEAT,
         SEND_CLOSE
     );
-    signal session_state : SessionState_t := WAIT_FOR_HANDSHAKE_REQUEST;
-    signal generation_id : GenerationId_t := to_unsigned(0, 8);
-    signal prev_rx_valid : std_logic      := '0';
-    signal counter       : natural        := 0;
-    signal elapsed       : natural        := 0;
+    signal session_state    : SessionState_t := WAIT_FOR_HANDSHAKE_REQUEST;
+    signal prev_rx_valid    : std_logic      := '0';
+    signal host_mac_address : MacAddress_t   := MAC_ADDRESS_BROADCAST;
+    signal generation_id    : GenerationId_t := to_unsigned(0, 8);
+    signal counter          : natural        := 0;
+    signal elapsed          : natural        := 0;
 
     -- 50MHz reference clk that drives ethernet PHY
     component ip_clk_wizard_ethernet is
@@ -64,6 +65,8 @@ begin
                 if prev_rx_valid = '0' and rx_valid = '1' and
                    is_valid_handshake_request(rx_frame)
                 then
+                    host_mac_address <= rx_frame.src_mac;
+
                     counter <= 0;
                     session_state <= SEND_HANDSHAKE_RESPONSE;
 
@@ -80,20 +83,12 @@ begin
                     tx_valid <= '0';
                     counter <= 1;
                 else
-                    tx_frame.length <= X"0007";
-                    tx_frame.payload <= (others => '0');
-                    tx_frame.payload(
-                        0 to (4 * BITS_PER_BYTE) - 1
-                    ) <= CCO_MAGIC;
-                    tx_frame.payload(
-                        (4 * BITS_PER_BYTE) to (5 * BITS_PER_BYTE) - 1
-                    ) <= std_logic_vector(generation_id);
-                    tx_frame.payload(
-                        (5 * BITS_PER_BYTE) to (6 * BITS_PER_BYTE) - 1
-                    ) <= SessionCtlMsg_t'msg_type;
-                    tx_frame.payload(
-                        (6 * BITS_PER_BYTE) to (7 * BITS_PER_BYTE) - 1
-                    ) <= SessionCtl_Announce;
+                    tx_frame <= build_session_ctl_msg(
+                        dest_mac      => host_mac_address,
+                        src_mac       => MAC_ADDRESS_CCO,
+                        generation_id => generation_id,
+                        msg_type      => SessionCtl_Announce
+                    );
                     tx_valid <= '1';
 
                     counter <= 0;
@@ -105,20 +100,12 @@ begin
                     tx_valid <= '0';
                     counter <= 1;
                 else
-                    tx_frame.length <= X"0007";
-                    tx_frame.payload <= (others => '0');
-                    tx_frame.payload(
-                        0 to (4 * BITS_PER_BYTE) - 1
-                    ) <= CCO_MAGIC;
-                    tx_frame.payload(
-                        (4 * BITS_PER_BYTE) to (5 * BITS_PER_BYTE) - 1
-                    ) <= std_logic_vector(generation_id);
-                    tx_frame.payload(
-                        (5 * BITS_PER_BYTE) to (6 * BITS_PER_BYTE) - 1
-                    ) <= SessionCtlMsg_t'msg_type;
-                    tx_frame.payload(
-                        (6 * BITS_PER_BYTE) to (7 * BITS_PER_BYTE) - 1
-                    ) <= SessionCtl_HandshakeResponse;
+                    tx_frame <= build_session_ctl_msg(
+                        dest_mac      => host_mac_address,
+                        src_mac       => MAC_ADDRESS_CCO,
+                        generation_id => generation_id,
+                        msg_type      => SessionCtl_HandshakeResponse
+                    );
                     tx_valid <= '1';
 
                     counter <= 0;
@@ -155,20 +142,12 @@ begin
                     tx_valid <= '0';
                     counter <= 1;
                 else
-                    tx_frame.length <= X"0007";
-                    tx_frame.payload <= (others => '0');
-                    tx_frame.payload(
-                        0 to (4 * BITS_PER_BYTE) - 1
-                    ) <= CCO_MAGIC;
-                    tx_frame.payload(
-                        (4 * BITS_PER_BYTE) to (5 * BITS_PER_BYTE) - 1
-                    ) <= std_logic_vector(generation_id);
-                    tx_frame.payload(
-                        (5 * BITS_PER_BYTE) to (6 * BITS_PER_BYTE) - 1
-                    ) <= SessionCtlMsg_t'msg_type;
-                    tx_frame.payload(
-                        (6 * BITS_PER_BYTE) to (7 * BITS_PER_BYTE) - 1
-                    ) <= SessionCtl_Heartbeat;
+                    tx_frame <= build_session_ctl_msg(
+                        dest_mac      => host_mac_address,
+                        src_mac       => MAC_ADDRESS_CCO,
+                        generation_id => generation_id,
+                        msg_type      => SessionCtl_Heartbeat
+                    );
                     tx_valid <= '1';
 
                     counter <= 0;
@@ -180,21 +159,15 @@ begin
                     tx_valid <= '0';
                     counter <= 1;
                 else
-                    tx_frame.length <= X"0007";
-                    tx_frame.payload <= (others => '0');
-                    tx_frame.payload(
-                        0 to (4 * BITS_PER_BYTE) - 1
-                    ) <= CCO_MAGIC;
-                    tx_frame.payload(
-                        (4 * BITS_PER_BYTE) to (5 * BITS_PER_BYTE) - 1
-                    ) <= std_logic_vector(generation_id);
-                    tx_frame.payload(
-                        (5 * BITS_PER_BYTE) to (6 * BITS_PER_BYTE) - 1
-                    ) <= SessionCtlMsg_t'msg_type;
-                    tx_frame.payload(
-                        (6 * BITS_PER_BYTE) to (7 * BITS_PER_BYTE) - 1
-                    ) <= SessionCtl_Close;
+                    tx_frame <= build_session_ctl_msg(
+                        dest_mac      => host_mac_address,
+                        src_mac       => MAC_ADDRESS_CCO,
+                        generation_id => generation_id,
+                        msg_type      => SessionCtl_Close
+                    );
                     tx_valid <= '1';
+
+                    host_mac_address <= MAC_ADDRESS_BROADCAST;
 
                     if generation_id < MAX_GENERATION_ID then
                         generation_id <= generation_id + 1;
@@ -209,8 +182,6 @@ begin
             prev_rx_valid <= rx_valid;
         end if;
     end process;
-    tx_frame.dest_mac <= X"FFFFFFFFFFFF";
-    tx_frame.src_mac  <= X"123456789ABC";
     with session_state select o_leds(15 downto 10) <=
         "100000" when WAIT_FOR_HANDSHAKE_REQUEST,
         "010000" when SEND_ANNOUNCE,
