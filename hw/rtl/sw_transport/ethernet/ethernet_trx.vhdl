@@ -16,10 +16,7 @@ end ethernet_trx;
 
 architecture behavioral of ethernet_trx is
 
-    constant CLKS_PER_SEC        : natural        := 50000000;
-    constant ANNOUNCE_INTERVAL   : natural        := 1;
-    constant HEARTBEAT_INTERVAL  : natural        := 1;
-    constant TIMEOUT_INTERVAL    : natural        := 3 * HEARTBEAT_INTERVAL;
+    constant CLKS_PER_SEC : natural := 50000000;
 
     -- Session state
     type SessionState_t is (

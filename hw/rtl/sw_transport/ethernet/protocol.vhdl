@@ -7,20 +7,22 @@ library work;
 
 package protocol is
 
-    subtype GenerationId_t is unsigned(0 to BITS_PER_BYTE - 1);
-    constant MAX_GENERATION_ID : natural := 255;
-    subtype MsgType_t is std_logic_vector(0 to BITS_PER_BYTE - 1);
-    attribute size     : natural;
-    attribute msg_type : MsgType_t;
-
     -----------------------------------Header-----------------------------------
     subtype Magic_t is std_logic_vector(0 to (4 * BITS_PER_BYTE) - 1);
     constant CCO_MAGIC : Magic_t := X"83F8DDEF";
+
+    subtype GenerationId_t is unsigned(0 to BITS_PER_BYTE - 1);
+    constant MAX_GENERATION_ID : natural := 255;
+
+    subtype MsgType_t is std_logic_vector(0 to BITS_PER_BYTE - 1);
+    attribute msg_type : MsgType_t;
+
     type Msg_t is record
         magic         : Magic_t;
         generation_id : GenerationId_t;
         msg_type      : MsgType_t;
     end record;
+    attribute size : natural;
     attribute size of Msg_t : type is 6;
 
     type MsgTypeQueryResult_t is record
@@ -61,6 +63,10 @@ package protocol is
     constant SessionCtl_HandshakeResponse : MsgType_t := X"02";
     constant SessionCtl_Heartbeat         : MsgType_t := X"03";
     constant SessionCtl_Close             : MsgType_t := X"04";
+
+    constant ANNOUNCE_INTERVAL  : natural := 1;
+    constant HEARTBEAT_INTERVAL : natural := 1;
+    constant TIMEOUT_INTERVAL   : natural := 3 * HEARTBEAT_INTERVAL;
 
     function is_valid_session_ctl_msg(
         frame : Frame_t;
