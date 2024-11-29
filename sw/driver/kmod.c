@@ -2,6 +2,7 @@
 #include <linux/module.h>
 
 #include "device.h"
+#include "ethernet.h"
 #include "log.h"
 
 MODULE_AUTHOR("Jake Whitton <jwhitton@alum.mit.edu>");
@@ -16,18 +17,18 @@ static int __init kmod_init(void)
     if (err < 0)
         goto exit_error;
 
-    // Create a single device upon module loading
-    //
-    // Note: once ethernet communication with the FPGA is implemented, we will
-    // defer device creation to the point at which handshake over ethernet is
-    // successfully completed.
-    //
-    err = cco_register_device();
+    err = cco_session_manager_init();
     if (err < 0)
         goto undo_register_driver;
 
+    err = cco_ethernet_init();
+    if (err < 0)
+        goto undo_session_manager_init;
+
     return 0;
 
+undo_session_manager_init:
+    cco_session_manager_exit();
 undo_register_driver:
     cco_unregister_driver();
 exit_error:
@@ -37,7 +38,9 @@ exit_error:
 
 static void __exit kmod_exit(void)
 {
-    cco_unregister_devices();
+    cco_ethernet_exit();
+    cco_session_manager_exit();
+    cco_close_sessions();
     cco_unregister_driver();
 }
 

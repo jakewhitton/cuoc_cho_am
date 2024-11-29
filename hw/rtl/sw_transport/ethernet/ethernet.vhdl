@@ -26,6 +26,8 @@ package ethernet is
     subtype MacAddress_t is std_logic_vector(
         0 to (MAC_SIZE * BITS_PER_BYTE) - 1
     );
+    constant MAC_ADDRESS_BROADCAST : MacAddress_t := (others => '1');
+    constant MAC_ADDRESS_CCO       : MacAddress_t := X"123456789ABC";
 
     -- Length/Ethertype
     constant LENGTH_SIZE       : natural := 2;
