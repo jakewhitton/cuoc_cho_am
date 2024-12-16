@@ -1,45 +1,109 @@
 #include "pcm.h"
 
+#include <linux/delay.h>
 #include <linux/slab.h>
+#include <linux/timekeeping.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 
+#include "ethernet.h"
 #include "log.h"
+#include "protocol.h"
 
 /*===============================Initialization===============================*/
+// Full definition is in "PCM <-> Ethernet" section
+static int pcm_manager(void * data);
+
 // Full definition is in "PCM interface" section
 static const struct snd_pcm_ops cco_pcm_ops;
+
+static int cco_pcm_device_init(struct cco_device *cco, int id, const char *name,
+                               bool is_playback, struct snd_pcm **result)
+{
+    int err;
+
+    int playback_substreams, capture_substreams;
+    if (is_playback) {
+        playback_substreams = 1;
+        capture_substreams = 0;
+    } else {
+        playback_substreams = 0;
+        capture_substreams = 1;
+    }
+
+    // Set up playback device
+    struct snd_pcm *pcm;
+    err = snd_pcm_new(
+        cco->card,           /* snd_card instance */
+        name,                /* name */
+        id,                  /* device number */
+        playback_substreams, /* playback_count */
+        capture_substreams,  /* capture_count */
+        &pcm);               /* snd_pcm intance */
+    if (err < 0) {
+        printk(KERN_ERR "cco: snd_pcm_new() failed\n");
+        err = -EAGAIN;
+        goto exit_error;
+    }
+    pcm->info_flags = 0;
+    strcpy(pcm->name, name);
+
+    // Sound core will propagate to snd_pcm_substream->private_data
+    pcm->private_data = cco;
+
+    if (is_playback) {
+        snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &cco_pcm_ops);
+    } else {
+        snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &cco_pcm_ops);
+    }
+
+    *result = pcm;
+
+    return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
 
 int cco_pcm_init(struct cco_device *cco)
 {
     int err;
 
-    for (int device = 0; device < PCM_DEVICES_PER_CARD; device++) {
+    // Boot infrastructure for transporting PCM data to and from ethernet
+    struct task_struct *task;
+    task = kthread_run(pcm_manager, cco, "cco_pcm_manager");
+    if (IS_ERR(task)) {
+        printk(KERN_ERR "cco: pcm manager kthread could not be created\n");
+        err = -EAGAIN;
+        goto exit_error;
+    }
+    cco->pcm_manager_task = task;
 
-        struct snd_pcm *pcm;
-        err = snd_pcm_new(
-            cco->card,                 /* snd_card instance */
-            "CCO PCM",                 /* id */
-            device,                    /* device number */
-            PCM_SUBSTREAMS_PER_DEVICE, /* playback_count */
-            PCM_SUBSTREAMS_PER_DEVICE, /* capture_count */
-            &pcm);                     /* snd_pcm intance */
-        if (err < 0) {
-            printk(KERN_ERR "cco: snd_pcm_new() failed\n");
-            goto exit_error;
-        }
-        pcm->info_flags = 0;
-        strcpy(pcm->name, "CCO PCM");
+    // Set up playback device
+    struct snd_pcm *pcm_playback;
+    err = cco_pcm_device_init(cco, 0, "CCO out", true, &pcm_playback);
+    if (err < 0) {
+        printk(KERN_ERR "cco: failed to create playback device\n");
+        goto undo_create_pcm_manager;
+    }
 
-        // Sound core will propagate to snd_pcm_substream->private_data
-        pcm->private_data = cco;
-
-        snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &cco_pcm_ops);
-        snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &cco_pcm_ops);
+    // Set up capture device
+    struct snd_pcm *pcm_capture;
+    err = cco_pcm_device_init(cco, 1, "CCO in", false, &pcm_capture);
+    if (err < 0) {
+        printk(KERN_ERR "cco: failed to create capture device\n");
+        goto undo_create_pcm_playback;
     }
 
     return 0;
 
+undo_create_pcm_playback:
+    snd_device_free(cco->card, pcm_playback);
+undo_create_pcm_manager:
+    if (kthread_stop(cco->pcm_manager_task) < 0)
+        printk(KERN_ERR "cco: could not stop pcm manager kthread\n");
+    cco->pcm_manager_task = NULL;
 exit_error:
     CCO_LOG_FUNCTION_FAILURE(err);
     return err;
@@ -50,23 +114,18 @@ exit_error:
 /*================================PCM interface===============================*/
 static const struct snd_pcm_hardware cco_pcm_hardware = {
     // General info
-    .info             = ( SNDRV_PCM_INFO_MMAP
-                        | SNDRV_PCM_INFO_INTERLEAVED
-                        | SNDRV_PCM_INFO_RESUME
-                        | SNDRV_PCM_INFO_MMAP_VALID ),
+    .info             = SNDRV_PCM_INFO_NONINTERLEAVED,
 
     // Sample format
-    .formats          = ( SNDRV_PCM_FMTBIT_U8
-                        | SNDRV_PCM_FMTBIT_S16_LE),
+    .formats          = SNDRV_PCM_FMTBIT_S24_BE,
 
     // Sampling rate
-    .rates            = ( SNDRV_PCM_RATE_CONTINUOUS
-                        | SNDRV_PCM_RATE_8000_48000 ),
-    .rate_min         = 5500,
+    .rates            = SNDRV_PCM_RATE_48000,
+    .rate_min         = 48000,
     .rate_max         = 48000,
 
     // Channels
-    .channels_min     = 1,
+    .channels_min     = 2,
     .channels_max     = 2,
 
     // Buffer params
@@ -166,9 +225,16 @@ static int cco_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
     int err;
     struct cco_pcm_impl *impl = substream->runtime->private_data;
 
+    struct cco_device *dev = snd_pcm_substream_chip(substream);
+    struct cco_session *session = dev->session;
+
     switch (cmd) {
         case SNDRV_PCM_TRIGGER_START:
         case SNDRV_PCM_TRIGGER_RESUME:
+
+            // Notify FPGA that stream should begin
+            send_pcm_ctl(session, PCM_CTL_START);
+
             spin_lock(&impl->lock);
             impl->base_time = jiffies;
             cco_pcm_timer_rearm(impl);
@@ -178,6 +244,9 @@ static int cco_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 
         case SNDRV_PCM_TRIGGER_STOP:
         case SNDRV_PCM_TRIGGER_SUSPEND:
+
+            // Notify FPGA that stream should begin
+            send_pcm_ctl(session, PCM_CTL_STOP);
 
             spin_lock(&impl->lock);
             del_timer(&impl->timer);
@@ -290,5 +359,26 @@ static void cco_pcm_timer_update(struct cco_pcm_impl *impl)
     }
 
     impl->frac_period_rest -= delta;
+}
+/*============================================================================*/
+
+
+/*==============================PCM <-> Ethernet==============================*/
+static int pcm_manager(void * data)
+{
+    struct cco_device *dev = (struct cco_device *)data;
+
+    // Notify that kthread is still alive periodically
+    ktime_t ts = ktime_get();
+    while (!kthread_should_stop()) {
+        ktime_t now = ktime_get();
+        if (now - ts > 1000000000) {
+            printk(KERN_INFO "cco: pcm_manager(%px) is still alive...", dev);
+            ts = now;
+        }
+        msleep(100);
+    }
+
+    return 0;
 }
 /*============================================================================*/
