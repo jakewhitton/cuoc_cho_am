@@ -8,6 +8,7 @@
 #define CCO_HEARTBEAT_INTERVAL ((ktime_t)1 * NS_PER_SEC)
 #define CCO_TIMEOUT_INTERVAL   ((ktime_t)3 * CCO_HEARTBEAT_INTERVAL)
 
+/*===================================Header===================================*/
 // First 32 bits of the MD5 hash of the string "cuoc cho am"
 #define CCO_MAGIC 0x83f8ddef
 
@@ -24,6 +25,10 @@ typedef struct
     char payload[];
 } __attribute__((packed)) Msg_t;
 
+/*============================================================================*/
+
+
+/*===============================Session control==============================*/
 enum SessionCtlMsgType_t
 {
     SESSION_CTL_ANNOUNCE           = 0,
@@ -38,6 +43,10 @@ typedef struct
     uint8_t msg_type;
 } __attribute__((packed)) SessionCtlMsg_t;
 
+/*============================================================================*/
+
+
+/*===================================Helpers==================================*/
 static inline int is_valid_cco_packet(struct sk_buff *skb)
 {
     struct ethhdr *hdr = eth_hdr(skb);
@@ -90,5 +99,6 @@ static inline Msg_t *get_cco_msg(struct sk_buff *skb)
 {
     return (Msg_t *)skb->data;
 }
+/*============================================================================*/
 
 #endif
