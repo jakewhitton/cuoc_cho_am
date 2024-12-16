@@ -1,6 +1,7 @@
 #ifndef CCO_DEVICE_H
 #define CCO_DEVICE_H
 
+#include <linux/kthread.h>
 #include <linux/platform_device.h>
 #include <linux/skbuff.h>
 #include <linux/timekeeping.h>
@@ -16,6 +17,8 @@ struct cco_device {
     struct snd_card *card;
     struct cco_mixer mixer;
     void *page[2];
+
+    struct task_struct *pcm_manager_task;
 };
 
 struct cco_session {

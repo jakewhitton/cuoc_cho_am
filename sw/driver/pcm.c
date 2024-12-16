@@ -1,18 +1,33 @@
 #include "pcm.h"
 
+#include <linux/delay.h>
 #include <linux/slab.h>
+#include <linux/timekeeping.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 
 #include "log.h"
 
 /*===============================Initialization===============================*/
+// Full definition is in "PCM <-> Ethernet" section
+static int pcm_manager(void * data);
+
 // Full definition is in "PCM interface" section
 static const struct snd_pcm_ops cco_pcm_ops;
 
 int cco_pcm_init(struct cco_device *cco)
 {
     int err;
+
+    // Boot infrastructure for transporting PCM data to and from ethernet
+    struct task_struct *task;
+    task = kthread_run(pcm_manager, cco, "cco_pcm_manager");
+    if (IS_ERR(task)) {
+        printk(KERN_ERR "cco: pcm manager kthread could not be created\n");
+        err = -EAGAIN;
+        goto exit_error;
+    }
+    cco->pcm_manager_task = task;
 
     for (int device = 0; device < PCM_DEVICES_PER_CARD; device++) {
 
@@ -26,7 +41,7 @@ int cco_pcm_init(struct cco_device *cco)
             &pcm);                     /* snd_pcm intance */
         if (err < 0) {
             printk(KERN_ERR "cco: snd_pcm_new() failed\n");
-            goto exit_error;
+            goto undo_create_pcm_manager;
         }
         pcm->info_flags = 0;
         strcpy(pcm->name, "CCO PCM");
@@ -40,6 +55,10 @@ int cco_pcm_init(struct cco_device *cco)
 
     return 0;
 
+undo_create_pcm_manager:
+    if (kthread_stop(cco->pcm_manager_task) < 0)
+        printk(KERN_ERR "cco: could not stop pcm manager kthread\n");
+    cco->pcm_manager_task = NULL;
 exit_error:
     CCO_LOG_FUNCTION_FAILURE(err);
     return err;
@@ -290,5 +309,26 @@ static void cco_pcm_timer_update(struct cco_pcm_impl *impl)
     }
 
     impl->frac_period_rest -= delta;
+}
+/*============================================================================*/
+
+
+/*==============================PCM <-> Ethernet==============================*/
+static int pcm_manager(void * data)
+{
+    struct cco_device *dev = (struct cco_device *)data;
+
+    // Notify that kthread is still alive periodically
+    ktime_t ts = ktime_get();
+    while (!kthread_should_stop()) {
+        ktime_t now = ktime_get();
+        if (now - ts > 1000000000) {
+            printk(KERN_INFO "cco: pcm_manager(%px) is still alive...", dev);
+            ts = now;
+        }
+        msleep(100);
+    }
+
+    return 0;
 }
 /*============================================================================*/

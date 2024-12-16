@@ -3,7 +3,6 @@
 #include <linux/delay.h>
 #include <linux/if_ether.h>
 #include <linux/kfifo.h>
-#include <linux/kthread.h>
 #include <linux/slab.h>
 #include <sound/pcm.h>
 
@@ -165,6 +164,12 @@ exit_error:
 
 void cco_unregister_device(struct cco_device *dev)
 {
+    if (dev->pcm_manager_task) {
+        if (kthread_stop(dev->pcm_manager_task) < 0)
+            printk(KERN_ERR "cco: could not stop pcm manager kthread\n");
+        dev->pcm_manager_task = NULL;
+    }
+
     if (dev->card)
         snd_card_disconnect(dev->card);
 
