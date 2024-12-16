@@ -145,6 +145,64 @@ exit_error:
     return err;
 }
 
+int send_pcm_ctl(struct cco_session *session, uint8_t msg_type)
+{
+    int err;
+
+    struct sk_buff *skb;
+    err = create_cco_packet(session, PCM_CTL, &skb);
+    if (err < 0)
+        goto exit_error;
+
+    PcmCtlMsg_t *msg;
+    msg = (PcmCtlMsg_t *)skb_put(skb, sizeof(PcmCtlMsg_t));
+    msg->msg_type = msg_type;
+
+    err = packet_send(session, skb);
+    if (err < 0)
+        goto exit_error;
+
+    return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
+
+int send_pcm_data(struct cco_session *session, uint32_t seqnum, uint32_t sample)
+{
+    int err;
+
+    struct sk_buff *skb;
+    err = create_cco_packet(session, PCM_DATA, &skb);
+    if (err < 0)
+        goto exit_error;
+
+    PcmDataMsg_t *msg;
+    msg = (PcmDataMsg_t *)skb_put(skb, sizeof(PcmDataMsg_t));
+    msg->seqnum = seqnum;
+
+    // Replicate individual sample value for entire data region
+    const char *src = (const char *)&sample;
+    for (int channel = 0; channel < CHANNELS_PER_PACKET; ++channel) {
+        for (int sample = 0; sample < SAMPLES_PER_CHANNEL; ++sample) {
+            for (int i = 0; i < SAMPLE_SIZE; ++i) {
+                msg->channels[channel].data[(sample * SAMPLE_SIZE) + i] = src[i];
+            }
+        }
+    }
+
+    err = packet_send(session, skb);
+    if (err < 0)
+        goto exit_error;
+
+    return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
+
 static int create_cco_packet(struct cco_session *session, uint8_t msg_type,
                              struct sk_buff **skb_out)
 {
@@ -155,6 +213,12 @@ static int create_cco_packet(struct cco_session *session, uint8_t msg_type,
     switch (msg_type) {
     case SESSION_CTL:
         len += sizeof(SessionCtlMsg_t);
+        break;
+    case PCM_CTL:
+        len += sizeof(PcmCtlMsg_t);
+        break;
+    case PCM_DATA:
+        len += sizeof(PcmDataMsg_t);
         break;
     default:
         printk(KERN_ERR "cco: \"%d\" is not a valid msgtype\n", msg_type);

@@ -15,6 +15,8 @@ void cco_ethernet_exit(void);
 int send_handshake_request(struct cco_session *session);
 int send_heartbeat(struct cco_session *session);
 int send_close(struct cco_session *session);
+int send_pcm_ctl(struct cco_session *session, uint8_t msg_type);
+int send_pcm_data(struct cco_session *session, uint32_t seqnum, uint32_t sample);
 
 #define SESSION_CTL_FIFO_SIZE 8
 typedef STRUCT_KFIFO(struct sk_buff *, SESSION_CTL_FIFO_SIZE) SessionCtlFifo_t;
