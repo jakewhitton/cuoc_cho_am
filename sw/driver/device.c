@@ -331,6 +331,7 @@ static void handle_session_ctl_msg(struct sk_buff *skb)
         printk(KERN_ERR "cco: [%pM, %d]: device created w/ id=%d\n",
                hdr->h_source, msg->generation_id, session->id);
         session->dev = dev;
+        dev->session = session;
         break;
 
     case SESSION_CTL_CLOSE:

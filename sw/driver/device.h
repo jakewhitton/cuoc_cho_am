@@ -9,9 +9,6 @@
 
 #include "mixer.h"
 
-#define PCM_DEVICES_PER_CARD      1
-#define PCM_SUBSTREAMS_PER_DEVICE 2
-
 struct cco_device {
     struct platform_device pdev;
     struct snd_card *card;
@@ -19,6 +16,8 @@ struct cco_device {
     void *page[2];
 
     struct task_struct *pcm_manager_task;
+
+    struct cco_session *session;
 };
 
 struct cco_session {

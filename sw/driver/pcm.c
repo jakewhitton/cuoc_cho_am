@@ -6,7 +6,9 @@
 #include <sound/core.h>
 #include <sound/pcm.h>
 
+#include "ethernet.h"
 #include "log.h"
+#include "protocol.h"
 
 /*===============================Initialization===============================*/
 // Full definition is in "PCM <-> Ethernet" section
@@ -223,9 +225,16 @@ static int cco_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
     int err;
     struct cco_pcm_impl *impl = substream->runtime->private_data;
 
+    struct cco_device *dev = snd_pcm_substream_chip(substream);
+    struct cco_session *session = dev->session;
+
     switch (cmd) {
         case SNDRV_PCM_TRIGGER_START:
         case SNDRV_PCM_TRIGGER_RESUME:
+
+            // Notify FPGA that stream should begin
+            send_pcm_ctl(session, PCM_CTL_START);
+
             spin_lock(&impl->lock);
             impl->base_time = jiffies;
             cco_pcm_timer_rearm(impl);
@@ -235,6 +244,9 @@ static int cco_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 
         case SNDRV_PCM_TRIGGER_STOP:
         case SNDRV_PCM_TRIGGER_SUSPEND:
+
+            // Notify FPGA that stream should begin
+            send_pcm_ctl(session, PCM_CTL_STOP);
 
             spin_lock(&impl->lock);
             del_timer(&impl->timer);
