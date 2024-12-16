@@ -112,19 +112,14 @@ exit_error:
 /*================================PCM interface===============================*/
 static const struct snd_pcm_hardware cco_pcm_hardware = {
     // General info
-    .info             = ( SNDRV_PCM_INFO_MMAP
-                        | SNDRV_PCM_INFO_INTERLEAVED
-                        | SNDRV_PCM_INFO_RESUME
-                        | SNDRV_PCM_INFO_MMAP_VALID ),
+    .info             = SNDRV_PCM_INFO_NONINTERLEAVED,
 
     // Sample format
-    .formats          = ( SNDRV_PCM_FMTBIT_U8
-                        | SNDRV_PCM_FMTBIT_S16_LE),
+    .formats          = SNDRV_PCM_FMTBIT_S24_BE,
 
     // Sampling rate
-    .rates            = ( SNDRV_PCM_RATE_CONTINUOUS
-                        | SNDRV_PCM_RATE_8000_48000 ),
-    .rate_min         = 5500,
+    .rates            = SNDRV_PCM_RATE_48000,
+    .rate_min         = 48000,
     .rate_max         = 48000,
 
     // Channels
