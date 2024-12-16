@@ -15,6 +15,55 @@ static int pcm_manager(void * data);
 // Full definition is in "PCM interface" section
 static const struct snd_pcm_ops cco_pcm_ops;
 
+static int cco_pcm_device_init(struct cco_device *cco, int id, const char *name,
+                               bool is_playback, struct snd_pcm **result)
+{
+    int err;
+
+    int playback_substreams, capture_substreams;
+    if (is_playback) {
+        playback_substreams = 1;
+        capture_substreams = 0;
+    } else {
+        playback_substreams = 0;
+        capture_substreams = 1;
+    }
+
+    // Set up playback device
+    struct snd_pcm *pcm;
+    err = snd_pcm_new(
+        cco->card,           /* snd_card instance */
+        name,                /* name */
+        id,                  /* device number */
+        playback_substreams, /* playback_count */
+        capture_substreams,  /* capture_count */
+        &pcm);               /* snd_pcm intance */
+    if (err < 0) {
+        printk(KERN_ERR "cco: snd_pcm_new() failed\n");
+        err = -EAGAIN;
+        goto exit_error;
+    }
+    pcm->info_flags = 0;
+    strcpy(pcm->name, name);
+
+    // Sound core will propagate to snd_pcm_substream->private_data
+    pcm->private_data = cco;
+
+    if (is_playback) {
+        snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &cco_pcm_ops);
+    } else {
+        snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &cco_pcm_ops);
+    }
+
+    *result = pcm;
+
+    return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
+
 int cco_pcm_init(struct cco_device *cco)
 {
     int err;
@@ -29,32 +78,26 @@ int cco_pcm_init(struct cco_device *cco)
     }
     cco->pcm_manager_task = task;
 
-    for (int device = 0; device < PCM_DEVICES_PER_CARD; device++) {
+    // Set up playback device
+    struct snd_pcm *pcm_playback;
+    err = cco_pcm_device_init(cco, 0, "CCO out", true, &pcm_playback);
+    if (err < 0) {
+        printk(KERN_ERR "cco: failed to create playback device\n");
+        goto undo_create_pcm_manager;
+    }
 
-        struct snd_pcm *pcm;
-        err = snd_pcm_new(
-            cco->card,                 /* snd_card instance */
-            "CCO PCM",                 /* id */
-            device,                    /* device number */
-            PCM_SUBSTREAMS_PER_DEVICE, /* playback_count */
-            PCM_SUBSTREAMS_PER_DEVICE, /* capture_count */
-            &pcm);                     /* snd_pcm intance */
-        if (err < 0) {
-            printk(KERN_ERR "cco: snd_pcm_new() failed\n");
-            goto undo_create_pcm_manager;
-        }
-        pcm->info_flags = 0;
-        strcpy(pcm->name, "CCO PCM");
-
-        // Sound core will propagate to snd_pcm_substream->private_data
-        pcm->private_data = cco;
-
-        snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &cco_pcm_ops);
-        snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &cco_pcm_ops);
+    // Set up capture device
+    struct snd_pcm *pcm_capture;
+    err = cco_pcm_device_init(cco, 1, "CCO in", false, &pcm_capture);
+    if (err < 0) {
+        printk(KERN_ERR "cco: failed to create capture device\n");
+        goto undo_create_pcm_playback;
     }
 
     return 0;
 
+undo_create_pcm_playback:
+    snd_device_free(cco->card, pcm_playback);
 undo_create_pcm_manager:
     if (kthread_stop(cco->pcm_manager_task) < 0)
         printk(KERN_ERR "cco: could not stop pcm manager kthread\n");
@@ -85,7 +128,7 @@ static const struct snd_pcm_hardware cco_pcm_hardware = {
     .rate_max         = 48000,
 
     // Channels
-    .channels_min     = 1,
+    .channels_min     = 2,
     .channels_max     = 2,
 
     // Buffer params
