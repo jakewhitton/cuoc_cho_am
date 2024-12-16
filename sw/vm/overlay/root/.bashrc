@@ -16,3 +16,5 @@ c()
 		modprobe -r cco
     fi
 }
+
+alias p='aplay /root/test.wav &> /dev/null'
