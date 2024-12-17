@@ -31,7 +31,7 @@ static int cco_pcm_device_init(struct cco_device *cco, int id, const char *name,
         capture_substreams = 1;
     }
 
-    // Set up playback device
+    // Set up pcm device
     struct snd_pcm *pcm;
     err = snd_pcm_new(
         cco->card,           /* snd_card instance */
@@ -368,14 +368,7 @@ static int pcm_manager(void * data)
 {
     struct cco_device *dev = (struct cco_device *)data;
 
-    // Notify that kthread is still alive periodically
-    ktime_t ts = ktime_get();
     while (!kthread_should_stop()) {
-        ktime_t now = ktime_get();
-        if (now - ts > 1000000000) {
-            printk(KERN_INFO "cco: pcm_manager(%px) is still alive...", dev);
-            ts = now;
-        }
         msleep(100);
     }
 
