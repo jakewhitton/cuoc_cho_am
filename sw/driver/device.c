@@ -143,6 +143,8 @@ static struct cco_device *cco_register_device(int id)
     dev->pdev.id = id;
     dev->pdev.dev.release = cco_release_device;
 
+    INIT_LIST_HEAD(&dev->playback_data);
+
     // Register platform device, which will cause probe() method to be called if
     // name supplied matches that of driver that was previously registered
     err = platform_device_register(&dev->pdev);

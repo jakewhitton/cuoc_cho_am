@@ -285,11 +285,64 @@ static int cco_pcm_silence(struct snd_pcm_substream *substream,
     return 0; /* do nothing */
 }
 
+static int cco_pcm_copy_playback(struct snd_pcm_substream *substream,
+                                 int channel, unsigned long pos,
+                                 struct iov_iter *iter, unsigned long bytes)
+{
+    int err;
+
+    // Allocate buffer to hold PCM data
+    char *buf = kzalloc(bytes, GFP_KERNEL);
+    if (IS_ERR(buf)) {
+        err = -ENOMEM;
+        goto exit_error;
+    }
+
+    // Copy PCM data into buffer
+    size_t remaining = bytes;
+    do {
+        remaining = copy_from_iter(buf, remaining, iter);
+    } while (remaining > 0);
+
+    // Prepare playback data
+    struct cco_pcm_playback_data *data;
+    data = kzalloc(sizeof(*data), GFP_KERNEL);
+    if (IS_ERR(data)) {
+        err = -ENOMEM;
+        goto undo_alloc_buf;
+    }
+    data->buf = buf;
+    data->len = bytes;
+
+    // Place PCM data into device for later transmission
+    struct cco_device *dev = snd_pcm_substream_chip(substream);
+    list_add(&data->list, &dev->playback_data);
+
+    return 0;
+
+undo_alloc_buf:
+    kfree(buf);
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
+
+static int cco_pcm_copy_capture(struct snd_pcm_substream *substream,
+                                int channel, unsigned long pos,
+                                struct iov_iter *iter, unsigned long bytes)
+{
+    return 0;
+}
+
 static int cco_pcm_copy(struct snd_pcm_substream *substream,
                         int channel, unsigned long pos,
                         struct iov_iter *iter, unsigned long bytes)
 {
-    return 0; /* do nothing */
+    unsigned char rw = iov_iter_rw(iter);
+
+    return rw == WRITE
+        ? cco_pcm_copy_playback(substream, channel, pos, iter, bytes)
+        : cco_pcm_copy_capture(substream, channel, pos, iter, bytes);
 }
 
 static struct page *cco_pcm_page(struct snd_pcm_substream *substream,
@@ -369,6 +422,21 @@ static int pcm_manager(void * data)
     struct cco_device *dev = (struct cco_device *)data;
 
     while (!kthread_should_stop()) {
+
+        if (list_empty(&dev->playback_data)) {
+            printk(KERN_INFO "<no playback data>\n");
+        } else {
+            printk(KERN_INFO "playback_data:\n");
+
+            struct list_head *pos;
+            list_for_each(pos, &dev->playback_data) {
+                struct cco_pcm_playback_data *data;
+                data = list_entry(pos, struct cco_pcm_playback_data, list);
+                printk(KERN_INFO "    {buf=0x%px, len=%u}\n",
+                       data->buf, data->len);
+            }
+        }
+
         msleep(100);
     }
 

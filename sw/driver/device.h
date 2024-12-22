@@ -2,12 +2,19 @@
 #define CCO_DEVICE_H
 
 #include <linux/kthread.h>
+#include <linux/list.h>
 #include <linux/platform_device.h>
 #include <linux/skbuff.h>
 #include <linux/timekeeping.h>
 #include <sound/core.h>
 
 #include "mixer.h"
+
+struct cco_pcm_playback_data {
+    char *buf;
+    unsigned len;
+    struct list_head list;
+};
 
 struct cco_device {
     struct platform_device pdev;
@@ -16,6 +23,9 @@ struct cco_device {
     void *page[2];
 
     struct task_struct *pcm_manager_task;
+
+    // Playback state
+    struct list_head playback_data;
 
     struct cco_session *session;
 };
