@@ -253,8 +253,6 @@ static int cco_pcm_close(struct snd_pcm_substream *substream)
 static int cco_pcm_hw_params(struct snd_pcm_substream *substream,
                              struct snd_pcm_hw_params *hw_params)
 {
-    /* runtime->dma_bytes has to be set manually to allow mmap */
-    substream->runtime->dma_bytes = params_buffer_bytes(hw_params);
     return 0;
 }
 
@@ -283,7 +281,6 @@ static int cco_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 
     switch (cmd) {
         case SNDRV_PCM_TRIGGER_START:
-        case SNDRV_PCM_TRIGGER_RESUME:
 
             // Notify FPGA that stream should begin
             send_pcm_ctl(session, PCM_CTL_START);
@@ -296,7 +293,6 @@ static int cco_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 
 
         case SNDRV_PCM_TRIGGER_STOP:
-        case SNDRV_PCM_TRIGGER_SUSPEND:
 
             // Notify FPGA that stream should begin
             send_pcm_ctl(session, PCM_CTL_STOP);
@@ -362,13 +358,6 @@ exit_error:
     return err;
 }
 
-static struct page *cco_pcm_page(struct snd_pcm_substream *substream,
-                                 unsigned long offset)
-{
-    struct cco_device *cco = substream->private_data;
-    return virt_to_page(cco->page[substream->stream]); /* the same page */
-}
-
 static const struct snd_pcm_ops cco_pcm_ops = {
     .open         = cco_pcm_open,
     .close        = cco_pcm_close,
@@ -378,7 +367,6 @@ static const struct snd_pcm_ops cco_pcm_ops = {
     .pointer      = cco_pcm_pointer,
     .fill_silence = cco_pcm_silence,
     .copy         = cco_pcm_copy,
-    .page         = cco_pcm_page,
 };
 /*============================================================================*/
 
