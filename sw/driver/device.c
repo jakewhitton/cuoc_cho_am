@@ -116,8 +116,6 @@ static struct platform_driver cco_driver = {
 
 
 /*==============================Device management=============================*/
-static int alloc_fake_buffer(struct cco_device *cco);
-static void free_fake_buffer(struct cco_device *cco);
 static void cco_release_device(struct device *dev);
 
 static struct cco_device *cco_register_device(int id)
@@ -132,12 +130,6 @@ static struct cco_device *cco_register_device(int id)
         goto exit_error;
     }
 
-    // Allocate pages to be used by PCM implementation
-    err = alloc_fake_buffer(dev);
-    if (err < 0)
-        goto undo_alloc_device;
-
-
     // Set up platform device to be registered
     dev->pdev.name = CCO_DRIVER;
     dev->pdev.id = id;
@@ -148,13 +140,11 @@ static struct cco_device *cco_register_device(int id)
     err = platform_device_register(&dev->pdev);
     if (err < 0) {
         printk(KERN_ERR "cco: platform_device_register() failed\n");
-        goto undo_alloc_fake_buffer;
+        goto undo_alloc_device;
     }
 
     return dev;
 
-undo_alloc_fake_buffer:
-    free_fake_buffer(dev);
 undo_alloc_device:
     kfree(dev);
 exit_error:
@@ -172,42 +162,11 @@ void cco_unregister_device(struct cco_device *dev)
     platform_device_unregister(&dev->pdev);
 }
 
-static int alloc_fake_buffer(struct cco_device *dev)
-{
-    int err;
-
-    for (int i = 0; i < ARRAY_SIZE(dev->page); i++) {
-        dev->page[i] = (void *)get_zeroed_page(GFP_KERNEL);
-        if (!dev->page[i]) {
-            err = -ENOMEM;
-            goto undo_alloc;
-        }
-    }
-
-    return 0;
-
-undo_alloc:
-    free_fake_buffer(dev);
-    CCO_LOG_FUNCTION_FAILURE(err);
-    return err;
-}
-
-static void free_fake_buffer(struct cco_device *dev)
-{
-    for (int i = 0; i < ARRAY_SIZE(dev->page); i++) {
-        if (dev->page[i]) {
-            free_page((unsigned long)dev->page[i]);
-            dev->page[i] = NULL;
-        }
-    }
-}
-
 static void cco_release_device(struct device *dev)
 {
     struct cco_device *cco = dev_to_cco(dev);
     if (cco->card)
         snd_card_free(cco->card);
-    free_fake_buffer(cco);
     kfree(cco);
 }
 /*============================================================================*/

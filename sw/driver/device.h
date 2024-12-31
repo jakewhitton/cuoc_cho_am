@@ -19,7 +19,6 @@ struct cco_device {
     struct cco_pcm capture;
 
     struct cco_mixer mixer;
-    void *page[2];
 
     struct cco_session *session;
 };
