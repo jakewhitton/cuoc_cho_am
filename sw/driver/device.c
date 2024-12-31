@@ -143,8 +143,6 @@ static struct cco_device *cco_register_device(int id)
     dev->pdev.id = id;
     dev->pdev.dev.release = cco_release_device;
 
-    INIT_LIST_HEAD(&dev->playback_data);
-
     // Register platform device, which will cause probe() method to be called if
     // name supplied matches that of driver that was previously registered
     err = platform_device_register(&dev->pdev);
@@ -166,11 +164,7 @@ exit_error:
 
 void cco_unregister_device(struct cco_device *dev)
 {
-    if (dev->pcm_manager_task) {
-        if (kthread_stop(dev->pcm_manager_task) < 0)
-            printk(KERN_ERR "cco: could not stop pcm manager kthread\n");
-        dev->pcm_manager_task = NULL;
-    }
+    cco_pcm_exit(dev);
 
     if (dev->card)
         snd_card_disconnect(dev->card);

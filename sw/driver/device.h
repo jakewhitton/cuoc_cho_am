@@ -2,30 +2,24 @@
 #define CCO_DEVICE_H
 
 #include <linux/kthread.h>
-#include <linux/list.h>
 #include <linux/platform_device.h>
 #include <linux/skbuff.h>
 #include <linux/timekeeping.h>
 #include <sound/core.h>
 
 #include "mixer.h"
-
-struct cco_pcm_playback_data {
-    char *buf;
-    unsigned len;
-    struct list_head list;
-};
+#include "pcm.h"
 
 struct cco_device {
     struct platform_device pdev;
     struct snd_card *card;
-    struct cco_mixer mixer;
-    void *page[2];
 
     struct task_struct *pcm_manager_task;
+    struct cco_pcm playback;
+    struct cco_pcm capture;
 
-    // Playback state
-    struct list_head playback_data;
+    struct cco_mixer mixer;
+    void *page[2];
 
     struct cco_session *session;
 };

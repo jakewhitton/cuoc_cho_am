@@ -1,11 +1,13 @@
 #include "pcm.h"
 
 #include <linux/delay.h>
+#include <linux/skbuff.h>
 #include <linux/slab.h>
 #include <linux/timekeeping.h>
 #include <sound/core.h>
 #include <sound/pcm.h>
 
+#include "device.h"
 #include "ethernet.h"
 #include "log.h"
 #include "protocol.h"
@@ -17,8 +19,8 @@ static int pcm_manager(void * data);
 // Full definition is in "PCM interface" section
 static const struct snd_pcm_ops cco_pcm_ops;
 
-static int cco_pcm_device_init(struct cco_device *cco, int id, const char *name,
-                               bool is_playback, struct snd_pcm **result)
+static int cco_pcm_device_init(struct cco_pcm *pcm, struct cco_device *dev,
+                               int id, const char *name, bool is_playback)
 {
     int err;
 
@@ -32,38 +34,49 @@ static int cco_pcm_device_init(struct cco_device *cco, int id, const char *name,
     }
 
     // Set up pcm device
-    struct snd_pcm *pcm;
+    struct snd_pcm *pcm_tmp;
     err = snd_pcm_new(
-        cco->card,           /* snd_card instance */
+        dev->card,           /* snd_card instance */
         name,                /* name */
         id,                  /* device number */
         playback_substreams, /* playback_count */
         capture_substreams,  /* capture_count */
-        &pcm);               /* snd_pcm intance */
+        &pcm_tmp);           /* snd_pcm intance */
     if (err < 0) {
         printk(KERN_ERR "cco: snd_pcm_new() failed\n");
-        err = -EAGAIN;
         goto exit_error;
     }
-    pcm->info_flags = 0;
-    strcpy(pcm->name, name);
+    pcm_tmp->info_flags = 0;
+    strcpy(pcm_tmp->name, name);
 
     // Sound core will propagate to snd_pcm_substream->private_data
-    pcm->private_data = cco;
+    pcm_tmp->private_data = dev;
 
     if (is_playback) {
-        snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &cco_pcm_ops);
+        snd_pcm_set_ops(pcm_tmp, SNDRV_PCM_STREAM_PLAYBACK, &cco_pcm_ops);
     } else {
-        snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &cco_pcm_ops);
+        snd_pcm_set_ops(pcm_tmp, SNDRV_PCM_STREAM_CAPTURE, &cco_pcm_ops);
     }
 
-    *result = pcm;
+    pcm->pcm = pcm_tmp;
+
+    INIT_LIST_HEAD(&pcm->periods);
 
     return 0;
 
 exit_error:
     CCO_LOG_FUNCTION_FAILURE(err);
     return err;
+}
+
+static void cco_pcm_device_exit(struct cco_pcm *pcm)
+{
+    struct cco_device *dev = pcm->pcm->private_data;
+
+    if (pcm->pcm) {
+        snd_device_free(dev->card, pcm->pcm);
+        pcm->pcm = NULL;
+    }
 }
 
 int cco_pcm_init(struct cco_device *cco)
@@ -81,32 +94,72 @@ int cco_pcm_init(struct cco_device *cco)
     cco->pcm_manager_task = task;
 
     // Set up playback device
-    struct snd_pcm *pcm_playback;
-    err = cco_pcm_device_init(cco, 0, "CCO out", true, &pcm_playback);
+    err = cco_pcm_device_init(&cco->playback, cco, 0, "CCO out", true);
     if (err < 0) {
         printk(KERN_ERR "cco: failed to create playback device\n");
-        goto undo_create_pcm_manager;
+        goto exit_error;
     }
 
     // Set up capture device
-    struct snd_pcm *pcm_capture;
-    err = cco_pcm_device_init(cco, 1, "CCO in", false, &pcm_capture);
+    err = cco_pcm_device_init(&cco->capture, cco, 1, "CCO in", false);
     if (err < 0) {
         printk(KERN_ERR "cco: failed to create capture device\n");
-        goto undo_create_pcm_playback;
+        goto exit_error;
     }
 
     return 0;
 
-undo_create_pcm_playback:
-    snd_device_free(cco->card, pcm_playback);
-undo_create_pcm_manager:
-    if (kthread_stop(cco->pcm_manager_task) < 0)
-        printk(KERN_ERR "cco: could not stop pcm manager kthread\n");
-    cco->pcm_manager_task = NULL;
 exit_error:
+    cco_pcm_exit(cco);
     CCO_LOG_FUNCTION_FAILURE(err);
     return err;
+}
+
+void cco_pcm_exit(struct cco_device *cco)
+{
+    if (cco->pcm_manager_task) {
+        if (kthread_stop(cco->pcm_manager_task) < 0)
+            printk(KERN_ERR "cco: could not stop pcm manager kthread\n");
+        cco->pcm_manager_task = NULL;
+    }
+
+    cco_pcm_device_exit(&cco->playback);
+
+    cco_pcm_device_exit(&cco->capture);
+}
+/*============================================================================*/
+
+
+/*==============================Buffer Management=============================*/
+struct cco_pcm_period {
+    struct sk_buff *skb;
+    struct list_head list;
+};
+
+static int cco_pcm_put_period(struct cco_pcm *pcm, struct sk_buff *skb)
+{
+    // TODO
+    return 0;
+}
+
+static int cco_pcm_get_period(struct cco_pcm *pcm, struct sk_buff **result)
+{
+    // TODO
+    return 0;
+}
+
+static int cco_pcm_put_samples(struct cco_pcm *pcm, int channel,
+                               struct iov_iter *iter, unsigned long bytes)
+{
+    // TODO
+    return 0;
+}
+
+static int cco_pcm_get_samples(struct cco_pcm *pcm, int channel,
+                               struct iov_iter *iter, unsigned long bytes)
+{
+    // TODO
+    return 0;
 }
 /*============================================================================*/
 
@@ -285,64 +338,28 @@ static int cco_pcm_silence(struct snd_pcm_substream *substream,
     return 0; /* do nothing */
 }
 
-static int cco_pcm_copy_playback(struct snd_pcm_substream *substream,
-                                 int channel, unsigned long pos,
-                                 struct iov_iter *iter, unsigned long bytes)
-{
-    int err;
-
-    // Allocate buffer to hold PCM data
-    char *buf = kzalloc(bytes, GFP_KERNEL);
-    if (IS_ERR(buf)) {
-        err = -ENOMEM;
-        goto exit_error;
-    }
-
-    // Copy PCM data into buffer
-    size_t remaining = bytes;
-    do {
-        remaining = copy_from_iter(buf, remaining, iter);
-    } while (remaining > 0);
-
-    // Prepare playback data
-    struct cco_pcm_playback_data *data;
-    data = kzalloc(sizeof(*data), GFP_KERNEL);
-    if (IS_ERR(data)) {
-        err = -ENOMEM;
-        goto undo_alloc_buf;
-    }
-    data->buf = buf;
-    data->len = bytes;
-
-    // Place PCM data into device for later transmission
-    struct cco_device *dev = snd_pcm_substream_chip(substream);
-    list_add(&data->list, &dev->playback_data);
-
-    return 0;
-
-undo_alloc_buf:
-    kfree(buf);
-exit_error:
-    CCO_LOG_FUNCTION_FAILURE(err);
-    return err;
-}
-
-static int cco_pcm_copy_capture(struct snd_pcm_substream *substream,
-                                int channel, unsigned long pos,
-                                struct iov_iter *iter, unsigned long bytes)
-{
-    return 0;
-}
-
 static int cco_pcm_copy(struct snd_pcm_substream *substream,
                         int channel, unsigned long pos,
                         struct iov_iter *iter, unsigned long bytes)
 {
-    unsigned char rw = iov_iter_rw(iter);
+    int err;
 
-    return rw == WRITE
-        ? cco_pcm_copy_playback(substream, channel, pos, iter, bytes)
-        : cco_pcm_copy_capture(substream, channel, pos, iter, bytes);
+    struct cco_device *dev = snd_pcm_substream_chip(substream);
+
+    if (iov_iter_rw(iter) == WRITE) {
+        err = cco_pcm_put_samples(&dev->playback, channel, iter, bytes);
+    } else {
+        err = cco_pcm_get_samples(&dev->capture, channel, iter, bytes);
+    }
+
+    if (err < 0)
+        goto exit_error;
+
+    return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
 }
 
 static struct page *cco_pcm_page(struct snd_pcm_substream *substream,
@@ -423,21 +440,22 @@ static int pcm_manager(void * data)
 
     while (!kthread_should_stop()) {
 
-        if (list_empty(&dev->playback_data)) {
-            printk(KERN_INFO "<no playback data>\n");
-        } else {
-            printk(KERN_INFO "playback_data:\n");
+        struct list_head *pos;
 
-            struct list_head *pos;
-            list_for_each(pos, &dev->playback_data) {
-                struct cco_pcm_playback_data *data;
-                data = list_entry(pos, struct cco_pcm_playback_data, list);
-                printk(KERN_INFO "    {buf=0x%px, len=%u}\n",
-                       data->buf, data->len);
-            }
+        unsigned playback_periods = 0;
+        list_for_each(pos, &dev->playback.periods) {
+            ++playback_periods;
         }
 
-        msleep(100);
+        unsigned capture_periods = 0;
+        list_for_each(pos, &dev->capture.periods) {
+            ++capture_periods;
+        }
+
+        printk(KERN_INFO "[playback: %u, capture: %u]\n",
+               playback_periods, capture_periods);
+
+        msleep(1000);
     }
 
     return 0;
