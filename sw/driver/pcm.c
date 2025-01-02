@@ -1,6 +1,7 @@
 #include "pcm.h"
 
 #include <linux/delay.h>
+#include <linux/minmax.h>
 #include <linux/skbuff.h>
 #include <linux/slab.h>
 #include <linux/timekeeping.h>
@@ -15,6 +16,7 @@
 /*===============================Initialization===============================*/
 // Full definition is in "PCM <-> Ethernet" section
 static int pcm_manager(void * data);
+
 
 // Full definition is in "PCM interface" section
 static const struct snd_pcm_ops cco_pcm_ops;
@@ -158,9 +160,10 @@ static int cco_pcm_alloc_period(struct cco_pcm *pcm, struct sk_buff *skb,
     // Allocate and populate skb if one is not provided
     if (!skb) {
         err = build_pcm_data(pcm->dev->session, pcm->seqnum, &skb);
-        ++pcm->seqnum;
         if (err < 0)
-            goto exit_error;
+            goto undo_alloc_period;
+
+        ++pcm->seqnum;
     }
     period->skb = skb;
 
@@ -170,6 +173,30 @@ static int cco_pcm_alloc_period(struct cco_pcm *pcm, struct sk_buff *skb,
 
 undo_alloc_period:
     kfree(period);
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
+
+static int cco_pcm_advance_cursor(struct cco_pcm *pcm, int channel)
+{
+	int err;
+
+	struct list_head **cursor = &pcm->cursors[channel];
+	if (list_is_last(*cursor, &pcm->periods)) {
+		// Next period doesn't yet exist, attempt to allocate it
+		struct cco_pcm_period *period;
+		err = cco_pcm_alloc_period(pcm, NULL, &period);
+		if (err < 0)
+			goto exit_error;
+
+		list_add_tail(&period->list, &pcm->periods);
+	}
+
+	*cursor = (*cursor)->next;
+
+	return 0;
+
 exit_error:
     CCO_LOG_FUNCTION_FAILURE(err);
     return err;
@@ -190,35 +217,44 @@ static int cco_pcm_get_period(struct cco_pcm *pcm, struct sk_buff **result)
 static int cco_pcm_put_samples(struct cco_pcm *pcm, int channel,
                                struct iov_iter *iter, unsigned long bytes)
 {
+	int err;
+
+	struct list_head **cursor = &pcm->cursors[channel];
+	struct cco_pcm_period *period = list_entry(*cursor, struct cco_pcm_period, list);
+
+	if (list_is_head(*cursor, &pcm->periods) ||
+		period->sizes[channel] >= sizeof(ChannelPcmData_t))
+	{
+		err = cco_pcm_advance_cursor(pcm, channel);
+		if (err < 0)
+			goto exit_error;
+	}
+
     while (bytes > 0) {
+		period = list_entry(*cursor, struct cco_pcm_period, list);
+		unsigned *size = &period->sizes[channel];
 
-        // Fetch or allocate an sk_buff which will accept the sample data
-        struct list_head *cursor = pcm->cursors[channel];
-        struct cco_pcm_period *period;
-        period = list_entry(cursor, struct cco_pcm_period, list);
-        if (list_is_head(cursor, &pcm->periods) ||
-            period->sizes[channel] >= sizeof(ChannelPcmData_t))
-        {
-            // Allocate a new period
-            err = cco_pcm_alloc_period(pcm, NULL, &period);
-            if (err < 0)
-                goto exit_error;
-            
-            // Add period to master list and update cursor
-            // TODO
+		PcmDataMsg_t *msg = (PcmDataMsg_t *)get_cco_msg(period->skb)->payload;
+		char *start = &msg->channels[channel].data[*size];
 
-            pcm->cursors[channel] = &period->list;
-            period = list_entry(cursor, struct cco_pcm_period, list);
-        }
-        
+		// Copy sample data into appropriate place in skb
+		size_t target = min(bytes, sizeof(ChannelPcmData_t) - *size);
+		size_t remaining = target;
+		while (remaining > 0) {
+			char *buf = start + target - remaining;
+			remaining = copy_from_iter(buf, remaining, iter);
+		}
+		*size += target;
+		bytes -= target;
 
-
-        period = list_entry(pcm->cursors[channel], struct cco_pcm_period, list);
-
-        
-
+		// Advance cursor if we've exhausted the space in this skb for a given channel
+		if (period->sizes[channel] >= sizeof(ChannelPcmData_t)) {
+			err = cco_pcm_advance_cursor(pcm, channel);
+			if (err < 0)
+				goto exit_error;
+		}
     }
-    
+
     return 0;
 
 exit_error:

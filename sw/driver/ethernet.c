@@ -169,8 +169,8 @@ exit_error:
     return err;
 }
 
-int send_pcm_data(struct cco_session *session, uint32_t seqnum,
-                  struct sk_buff **result)
+int build_pcm_data(struct cco_session *session, uint32_t seqnum,
+                   struct sk_buff **result)
 {
     int err;
 
