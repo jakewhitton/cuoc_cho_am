@@ -61,6 +61,11 @@ static int cco_pcm_device_init(struct cco_pcm *pcm, struct cco_device *dev,
     pcm->pcm = pcm_tmp;
 
     INIT_LIST_HEAD(&pcm->periods);
+    for (int i = 0; i < ARRAY_SIZE(pcm->cursors); ++i) {
+        pcm->cursors[i] = &pcm->periods;
+    }
+
+    pcm->dev = dev;
 
     return 0;
 
@@ -134,7 +139,41 @@ void cco_pcm_exit(struct cco_device *cco)
 struct cco_pcm_period {
     struct sk_buff *skb;
     struct list_head list;
+    unsigned sizes[CHANNELS_PER_PACKET];
 };
+
+static int cco_pcm_alloc_period(struct cco_pcm *pcm, struct sk_buff *skb,
+                                struct cco_pcm_period **result)
+{
+    int err;
+
+    // Allocate space for linked list node
+    struct cco_pcm_period *period;
+    period = kzalloc(sizeof(*period), GFP_KERNEL);
+    if (!period) {
+        err = -ENOMEM;
+        goto exit_error;
+    }
+
+    // Allocate and populate skb if one is not provided
+    if (!skb) {
+        err = build_pcm_data(pcm->dev->session, pcm->seqnum, &skb);
+        ++pcm->seqnum;
+        if (err < 0)
+            goto exit_error;
+    }
+    period->skb = skb;
+
+    *result = period;
+
+    return 0;
+
+undo_alloc_period:
+    kfree(period);
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
 
 static int cco_pcm_put_period(struct cco_pcm *pcm, struct sk_buff *skb)
 {
@@ -151,8 +190,40 @@ static int cco_pcm_get_period(struct cco_pcm *pcm, struct sk_buff **result)
 static int cco_pcm_put_samples(struct cco_pcm *pcm, int channel,
                                struct iov_iter *iter, unsigned long bytes)
 {
-    // TODO
+    while (bytes > 0) {
+
+        // Fetch or allocate an sk_buff which will accept the sample data
+        struct list_head *cursor = pcm->cursors[channel];
+        struct cco_pcm_period *period;
+        period = list_entry(cursor, struct cco_pcm_period, list);
+        if (list_is_head(cursor, &pcm->periods) ||
+            period->sizes[channel] >= sizeof(ChannelPcmData_t))
+        {
+            // Allocate a new period
+            err = cco_pcm_alloc_period(pcm, NULL, &period);
+            if (err < 0)
+                goto exit_error;
+            
+            // Add period to master list and update cursor
+            // TODO
+
+            pcm->cursors[channel] = &period->list;
+            period = list_entry(cursor, struct cco_pcm_period, list);
+        }
+        
+
+
+        period = list_entry(pcm->cursors[channel], struct cco_pcm_period, list);
+
+        
+
+    }
+    
     return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
 }
 
 static int cco_pcm_get_samples(struct cco_pcm *pcm, int channel,

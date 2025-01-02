@@ -169,7 +169,8 @@ exit_error:
     return err;
 }
 
-int send_pcm_data(struct cco_session *session, uint32_t seqnum, uint32_t sample)
+int send_pcm_data(struct cco_session *session, uint32_t seqnum,
+                  struct sk_buff **result)
 {
     int err;
 
@@ -182,19 +183,7 @@ int send_pcm_data(struct cco_session *session, uint32_t seqnum, uint32_t sample)
     msg = (PcmDataMsg_t *)skb_put(skb, sizeof(PcmDataMsg_t));
     msg->seqnum = seqnum;
 
-    // Replicate individual sample value for entire data region
-    const char *src = (const char *)&sample;
-    for (int channel = 0; channel < CHANNELS_PER_PACKET; ++channel) {
-        for (int sample = 0; sample < SAMPLES_PER_CHANNEL; ++sample) {
-            for (int i = 0; i < SAMPLE_SIZE; ++i) {
-                msg->channels[channel].data[(sample * SAMPLE_SIZE) + i] = src[i];
-            }
-        }
-    }
-
-    err = packet_send(session, skb);
-    if (err < 0)
-        goto exit_error;
+    *result = skb;
 
     return 0;
 
