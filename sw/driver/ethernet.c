@@ -71,8 +71,6 @@ void cco_ethernet_exit(void)
 static int create_cco_packet(struct cco_session *session, uint8_t msg_type,
                              struct sk_buff **skb_out);
 
-static int packet_send(struct cco_session *session, struct sk_buff *skb);
-
 int send_handshake_request(struct cco_session *session)
 {
     int err;
@@ -181,7 +179,7 @@ int build_pcm_data(struct cco_session *session, uint32_t seqnum,
 
     PcmDataMsg_t *msg;
     msg = (PcmDataMsg_t *)skb_put(skb, sizeof(PcmDataMsg_t));
-    msg->seqnum = seqnum;
+    msg->seqnum = htonl(seqnum);
 
     *result = skb;
 
@@ -243,7 +241,7 @@ exit_error:
     return err;
 }
 
-static int packet_send(struct cco_session *session, struct sk_buff *skb)
+int packet_send(struct cco_session *session, struct sk_buff *skb)
 {
     int err;
 

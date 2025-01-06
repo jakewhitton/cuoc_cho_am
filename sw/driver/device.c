@@ -118,7 +118,7 @@ static struct platform_driver cco_driver = {
 /*==============================Device management=============================*/
 static void cco_release_device(struct device *dev);
 
-static struct cco_device *cco_register_device(int id)
+static struct cco_device *cco_register_device(struct cco_session *session)
 {
     int err;
 
@@ -129,10 +129,11 @@ static struct cco_device *cco_register_device(int id)
         err = -ENOMEM;
         goto exit_error;
     }
+    dev->session = session;
 
     // Set up platform device to be registered
     dev->pdev.name = CCO_DRIVER;
-    dev->pdev.id = id;
+    dev->pdev.id = session->id;
     dev->pdev.dev.release = cco_release_device;
 
     // Register platform device, which will cause probe() method to be called if
@@ -277,7 +278,7 @@ static void handle_session_ctl_msg(struct sk_buff *skb)
         break;
 
     case SESSION_CTL_HANDSHAKE_RESPONSE:
-        struct cco_device *dev = cco_register_device(session->id);
+        struct cco_device *dev = cco_register_device(session);
         if (!dev) {
             send_close(session);
             cco_close_session(session, "failed to register cco_device");
@@ -286,7 +287,6 @@ static void handle_session_ctl_msg(struct sk_buff *skb)
         printk(KERN_ERR "cco: [%pM, %d]: device created w/ id=%d\n",
                hdr->h_source, msg->generation_id, session->id);
         session->dev = dev;
-        dev->session = session;
         break;
 
     case SESSION_CTL_CLOSE:

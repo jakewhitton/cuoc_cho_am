@@ -18,6 +18,7 @@ int send_close(struct cco_session *session);
 int send_pcm_ctl(struct cco_session *session, uint8_t msg_type);
 int build_pcm_data(struct cco_session *session, uint32_t seqnum,
                    struct sk_buff **result);
+int packet_send(struct cco_session *session, struct sk_buff *skb);
 
 #define SESSION_CTL_FIFO_SIZE 8
 typedef STRUCT_KFIFO(struct sk_buff *, SESSION_CTL_FIFO_SIZE) SessionCtlFifo_t;

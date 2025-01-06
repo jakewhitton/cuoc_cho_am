@@ -17,7 +17,6 @@
 // Full definition is in "PCM <-> Ethernet" section
 static int pcm_manager(void * data);
 
-
 // Full definition is in "PCM interface" section
 static const struct snd_pcm_ops cco_pcm_ops;
 
@@ -210,7 +209,21 @@ static int cco_pcm_put_period(struct cco_pcm *pcm, struct sk_buff *skb)
 
 static int cco_pcm_get_period(struct cco_pcm *pcm, struct sk_buff **result)
 {
-    // TODO
+    if (list_empty(&pcm->periods))
+        return -ENODATA;
+
+    struct list_head *pos = pcm->periods.next;
+    struct cco_pcm_period *period = list_entry(pos, struct cco_pcm_period, list);
+    for (int i = 0; i < CHANNELS_PER_PACKET; ++i) {
+        if (period->sizes[i] != sizeof(ChannelPcmData_t))
+            return -ENODATA;
+    }
+
+    // Remove period and present sk_buff to user
+    list_del(pos);
+    *result = period->skb;
+    kfree(period);
+
     return 0;
 }
 
@@ -549,28 +562,28 @@ static void cco_pcm_timer_update(struct cco_pcm_impl *impl)
 /*==============================PCM <-> Ethernet==============================*/
 static int pcm_manager(void * data)
 {
+    int err;
+
     struct cco_device *dev = (struct cco_device *)data;
+    struct cco_session *session = dev->session;
 
     while (!kthread_should_stop()) {
 
-        struct list_head *pos;
-
-        unsigned playback_periods = 0;
-        list_for_each(pos, &dev->playback.periods) {
-            ++playback_periods;
+        struct sk_buff *skb;
+        err = cco_pcm_get_period(&dev->playback, &skb);
+        if (err == 0) {
+            packet_send(session, skb);
+        } else if (err < 0 && err != -ENODATA) {
+            goto exit_error;
         }
 
-        unsigned capture_periods = 0;
-        list_for_each(pos, &dev->capture.periods) {
-            ++capture_periods;
-        }
-
-        printk(KERN_INFO "[playback: %u, capture: %u]\n",
-               playback_periods, capture_periods);
-
-        msleep(1000);
+        msleep(1);
     }
 
     return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
 }
 /*============================================================================*/
