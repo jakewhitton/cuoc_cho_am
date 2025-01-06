@@ -247,18 +247,28 @@ static int cco_pcm_put_samples(struct cco_pcm *pcm, int channel,
 		period = list_entry(*cursor, struct cco_pcm_period, list);
 		unsigned *size = &period->sizes[channel];
 
-		PcmDataMsg_t *msg = (PcmDataMsg_t *)get_cco_msg(period->skb)->payload;
-		char *start = &msg->channels[channel].data[*size];
+        // Note:
+        //
+        // get_cco_msg() in protocol.h would normally be used to fetch a pointer
+        // to a CCO header.  However, the current logic for building sk_buff's
+        // mutates the data pointer and breaks it for packets that we build
+        // ourselves.
+        //
+        // For now, we hack around this by manually striding over the eth header
+        Msg_t *msg = (Msg_t *)(period->skb->data + ETH_HLEN);
+        PcmDataMsg_t *pcm_data_msg = (PcmDataMsg_t *)msg->payload;
+        char *channel_data = pcm_data_msg->channels[channel].data;
+        char *start = channel_data + *size;
 
 		// Copy sample data into appropriate place in skb
-		size_t target = min(bytes, sizeof(ChannelPcmData_t) - *size);
-		size_t remaining = target;
+        size_t remaining = min(bytes, sizeof(ChannelPcmData_t) - *size);
+        size_t copied = 0;
 		while (remaining > 0) {
-			char *buf = start + target - remaining;
-			remaining = copy_from_iter(buf, remaining, iter);
+            copied += copy_from_iter(start + copied, remaining, iter);
+            remaining -= copied;
 		}
-		*size += target;
-		bytes -= target;
+        *size += copied;
+        bytes -= copied;
 
 		// Advance cursor if we've exhausted the space in this skb for a given channel
 		if (period->sizes[channel] >= sizeof(ChannelPcmData_t)) {
