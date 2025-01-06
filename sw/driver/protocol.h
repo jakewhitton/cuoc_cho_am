@@ -64,8 +64,25 @@ typedef struct
 
 /*==================================PCM data==================================*/
 #define CHANNELS_PER_PACKET 2
-#define SAMPLES_PER_CHANNEL 192
-#define SAMPLE_SIZE 3
+#define SAMPLES_PER_CHANNEL 128
+
+// Note:
+//
+// The S/PDIF inputs & outputs on the FPGA always use 24-bit samples.  Because
+// of this, the snd_pcm_hardware defined in pcm.c announces support only for
+// 24-bit, big-endian samples.
+//
+// However, when running this way, snd_pcm_ops.copy() presents data that is
+// always left padded with zeroes such that each sample actually takes 4 bytes
+// in memory.
+//
+// To optimize the copying between ALSA's userspace buffers and the sk_buff's
+// that are used to communicate PCM data with the FPGA, we mimic this format in
+// our PCM data messages even though this is essentially burning bandwidth.
+//
+// This might be changed later if I discover a way to request a truly contiguous
+// 24-bit sample format from ALSA.
+#define SAMPLE_SIZE 4
 
 typedef struct
 {
