@@ -179,22 +179,22 @@ exit_error:
 
 static int cco_pcm_advance_cursor(struct cco_pcm *pcm, int channel)
 {
-	int err;
+    int err;
 
-	struct list_head **cursor = &pcm->cursors[channel];
-	if (list_is_last(*cursor, &pcm->periods)) {
-		// Next period doesn't yet exist, attempt to allocate it
-		struct cco_pcm_period *period;
-		err = cco_pcm_alloc_period(pcm, NULL, &period);
-		if (err < 0)
-			goto exit_error;
+    struct list_head **cursor = &pcm->cursors[channel];
+    if (list_is_last(*cursor, &pcm->periods)) {
+        // Next period doesn't yet exist, attempt to allocate it
+        struct cco_pcm_period *period;
+        err = cco_pcm_alloc_period(pcm, NULL, &period);
+        if (err < 0)
+            goto exit_error;
 
-		list_add_tail(&period->list, &pcm->periods);
-	}
+        list_add_tail(&period->list, &pcm->periods);
+    }
 
-	*cursor = (*cursor)->next;
+    *cursor = (*cursor)->next;
 
-	return 0;
+    return 0;
 
 exit_error:
     CCO_LOG_FUNCTION_FAILURE(err);
@@ -230,22 +230,22 @@ static int cco_pcm_get_period(struct cco_pcm *pcm, struct sk_buff **result)
 static int cco_pcm_put_samples(struct cco_pcm *pcm, int channel,
                                struct iov_iter *iter, unsigned long bytes)
 {
-	int err;
+    int err;
 
-	struct list_head **cursor = &pcm->cursors[channel];
-	struct cco_pcm_period *period = list_entry(*cursor, struct cco_pcm_period, list);
+    struct list_head **cursor = &pcm->cursors[channel];
+    struct cco_pcm_period *period = list_entry(*cursor, struct cco_pcm_period, list);
 
-	if (list_is_head(*cursor, &pcm->periods) ||
-		period->sizes[channel] >= sizeof(ChannelPcmData_t))
-	{
-		err = cco_pcm_advance_cursor(pcm, channel);
-		if (err < 0)
-			goto exit_error;
-	}
+    if (list_is_head(*cursor, &pcm->periods) ||
+        period->sizes[channel] >= sizeof(ChannelPcmData_t))
+    {
+        err = cco_pcm_advance_cursor(pcm, channel);
+        if (err < 0)
+            goto exit_error;
+    }
 
     while (bytes > 0) {
-		period = list_entry(*cursor, struct cco_pcm_period, list);
-		unsigned *size = &period->sizes[channel];
+        period = list_entry(*cursor, struct cco_pcm_period, list);
+        unsigned *size = &period->sizes[channel];
 
         // Note:
         //
@@ -260,22 +260,22 @@ static int cco_pcm_put_samples(struct cco_pcm *pcm, int channel,
         char *channel_data = pcm_data_msg->channels[channel].data;
         char *start = channel_data + *size;
 
-		// Copy sample data into appropriate place in skb
+        // Copy sample data into appropriate place in skb
         size_t remaining = min(bytes, sizeof(ChannelPcmData_t) - *size);
         size_t copied = 0;
-		while (remaining > 0) {
+        while (remaining > 0) {
             copied += copy_from_iter(start + copied, remaining, iter);
             remaining -= copied;
-		}
+        }
         *size += copied;
         bytes -= copied;
 
-		// Advance cursor if we've exhausted the space in this skb for a given channel
-		if (period->sizes[channel] >= sizeof(ChannelPcmData_t)) {
-			err = cco_pcm_advance_cursor(pcm, channel);
-			if (err < 0)
-				goto exit_error;
-		}
+        // Advance cursor if we've exhausted the space in this skb for a given channel
+        if (period->sizes[channel] >= sizeof(ChannelPcmData_t)) {
+            err = cco_pcm_advance_cursor(pcm, channel);
+            if (err < 0)
+                goto exit_error;
+        }
     }
 
     return 0;
