@@ -54,6 +54,7 @@ architecture behavioral of ethernet_trx is
 begin
 
     session_sm : process(ref_clk)
+        variable pcm_data_msg : PcmDataMsg_t;
     begin
         if rising_edge(ref_clk) then
             case session_state is
@@ -125,6 +126,14 @@ begin
                 then
                     elapsed <= 0;
 
+                    if is_valid_pcm_data_msg(rx_frame) then
+                        pcm_data_msg := get_pcm_data_msg(rx_frame);
+                        o_leds(15 downto 0) <= pcm_data_msg.pcm_l(
+                            (2 * BITS_PER_BYTE) to
+                            (4 * BITS_PER_BYTE) - 1
+                        );
+                    end if;
+
                 -- Otherwise, close session if we've exceeded heartbeat timeout
                 elsif elapsed < TIMEOUT_INTERVAL * CLKS_PER_SEC then
                     elapsed <= elapsed + 1;
@@ -179,13 +188,6 @@ begin
             prev_rx_valid <= rx_valid;
         end if;
     end process;
-    with session_state select o_leds(15 downto 10) <=
-        "100000" when WAIT_FOR_HANDSHAKE_REQUEST,
-        "010000" when SEND_ANNOUNCE,
-        "001000" when SEND_HANDSHAKE_RESPONSE,
-        "000100" when SESSION_OPEN,
-        "000010" when SEND_HEARTBEAT,
-        "000001" when SEND_CLOSE;
 
     -- Derives 50MHz clk from 100MHz clk for feeding into PHY
     generate_50mhz_ref_clk : ip_clk_wizard_ethernet

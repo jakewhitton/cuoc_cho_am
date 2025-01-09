@@ -88,6 +88,50 @@ package protocol is
     ) return Frame_t;
     ----------------------------------------------------------------------------
 
+
+    ---------------------------------PCM control--------------------------------
+    type PcmCtlMsg_t is record
+        msg_type : MsgType_t;
+    end record;
+    attribute size     of PcmCtlMsg_t : type is 1;
+    attribute msg_type of PcmCtlMsg_t : type is X"01";
+
+    constant PcmCtl_Start : MsgType_t := X"00";
+    constant PcmCtl_Stop  : MsgType_t := X"01";
+
+    function is_valid_pcm_ctl_msg(
+        frame : Frame_t;
+    ) return boolean;
+
+    function get_pcm_ctl_msg(
+        frame : Frame_t;
+    ) return PcmCtlMsg_t;
+    ----------------------------------------------------------------------------
+
+
+    ----------------------------------PCM data----------------------------------
+    constant PERIOD_SIZE : natural := 128;
+    subtype PcmChannelData_t is std_logic_vector(
+        0 to (PERIOD_SIZE * 4 * BITS_PER_BYTE) - 1
+    );
+
+    type PcmDataMsg_t is record
+        seqnum : unsigned(0 to (4 * BITS_PER_BYTE) - 1);
+        pcm_l  : PcmChannelData_t;
+        pcm_r  : PcmChannelData_t;
+    end record;
+    attribute size     of PcmDataMsg_t : type is 4 + (2 * PERIOD_SIZE);
+    attribute msg_type of PcmDataMsg_t : type is X"02";
+
+    function is_valid_pcm_data_msg(
+        frame : Frame_t;
+    ) return boolean;
+
+    function get_pcm_data_msg(
+        frame : Frame_t;
+    ) return PcmDataMsg_t;
+    ----------------------------------------------------------------------------
+
 end package protocol;
 
 package body protocol is
@@ -102,6 +146,16 @@ package body protocol is
             return (
                 valid => '1',
                 length => to_unsigned(Msg_t'size + SessionCtlMsg_t'size, 16)
+            );
+        when PcmCtlMsg_t'msg_type =>
+            return (
+                valid => '1',
+                length => to_unsigned(Msg_t'size + PcmCtlMsg_t'size, 16)
+            );
+        when PcmDataMsg_t'msg_type =>
+            return (
+                valid => '1',
+                length => to_unsigned(Msg_t'size + PcmDataMsg_t'size, 16)
             );
         when others =>
             return (
@@ -259,6 +313,84 @@ package body protocol is
         ) := msg_type;
 
         return frame;
+    end function;
+    ----------------------------------------------------------------------------
+
+
+    ---------------------------------PCM control--------------------------------
+    function is_valid_pcm_ctl_msg(
+        frame : Frame_t;
+    ) return boolean is
+        variable msg : Msg_t;
+    begin
+        -- Validate Msg_t
+        if not is_valid_msg(frame) then
+            return false;
+        end if;
+
+        -- Validate PcmCtlMsg_t
+        msg := get_msg(frame);
+        if msg.msg_type /= PcmCtlMsg_t'msg_type or
+           frame.length /= Msg_t'size + PcmCtlMsg_t'size
+        then
+            return false;
+        end if;
+
+        return true;
+    end function;
+
+    function get_pcm_ctl_msg(
+        frame : Frame_t;
+    ) return PcmCtlMsg_t is
+    begin
+        return (
+            msg_type => frame.payload(
+                (6 * BITS_PER_BYTE) to (7 * BITS_PER_BYTE) - 1
+            )
+        );
+    end function;
+    ----------------------------------------------------------------------------
+
+
+    ----------------------------------PCM data----------------------------------
+    function is_valid_pcm_data_msg(
+        frame : Frame_t;
+    ) return boolean is
+        variable msg : Msg_t;
+    begin
+        -- Validate Msg_t
+        if not is_valid_msg(frame) then
+            return false;
+        end if;
+
+        -- Validate PcmDataMsg_t
+        msg := get_msg(frame);
+        if msg.msg_type /= PcmDataMsg_t'msg_type or
+           frame.length /= Msg_t'size + PcmDataMsg_t'size
+        then
+            return false;
+        end if;
+
+        return true;
+    end function;
+
+    function get_pcm_data_msg(
+        frame : Frame_t;
+    ) return PcmDataMsg_t is
+    begin
+        return (
+            seqnum => unsigned(frame.payload(
+                (6 * BITS_PER_BYTE) to (10 * BITS_PER_BYTE) - 1
+            )),
+            pcm_l => frame.payload(
+                (10 * BITS_PER_BYTE) to
+                ((10 + (PERIOD_SIZE * 4)) * BITS_PER_BYTE) - 1
+            ),
+            pcm_r => frame.payload(
+                ((10 + (PERIOD_SIZE * 4)) * BITS_PER_BYTE) to
+                ((10 + 2 * (PERIOD_SIZE * 4)) * BITS_PER_BYTE) - 1
+            )
+        );
     end function;
     ----------------------------------------------------------------------------
 
