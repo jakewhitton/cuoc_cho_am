@@ -59,6 +59,7 @@ set(RTL_SRC
 set(IP_MODULES
     ip_clk_wizard_spdif
     ip_clk_wizard_ethernet
+    ip_sample_fifo
 )
 
 # Constraint sources

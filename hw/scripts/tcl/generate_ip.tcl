@@ -61,6 +61,20 @@ proc get_ip_config {ip} {
             ]
         }
 
+        ip_sample_fifo {
+            # Xilinx FIFO generator for transporting audio samples
+            dict set config "name"    "fifo_generator"
+            dict set config "vendor"  "xilinx.com"
+            dict set config "library" "ip"
+            dict set config "version" "13.2"
+            dict set config "props" [dict create                          \
+                CONFIG.Fifo_Implementation {Independent_Clocks_Block_RAM} \
+                CONFIG.Input_Data_Width    {768}                          \
+                CONFIG.Input_Depth         {32}                           \
+                CONFIG.Performance_Options {First_Word_Fall_Through}      \
+            ]
+        }
+
         default {
             exit_with_code "unknown IP: \"${ip}\""
         }
