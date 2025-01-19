@@ -67,7 +67,6 @@ architecture behavioral of period_fifo is
     );
     signal write_state     : WritePeriodState_t := READ_FROM_FIFO;
     signal subperiods_read : natural            := 0;
-    signal period_out      : Period_t           := Period_t_INIT;
 
     type Offsets_t is record
         channel : natural;
@@ -97,15 +96,15 @@ architecture behavioral of period_fifo is
     
 begin
 
-    read_sm : process(reader.clk)
+    read_sm : process(writer.clk)
         variable offsets : Offsets_t;
     begin
-        if rising_edge(reader.clk) then
+        if rising_edge(writer.clk) then
             case read_state is
             when WAIT_FOR_PERIOD_GIVEN =>
                 -- Wait for user to present new period, save it, then transit
-                if reader.enable = '1' then
-                    period_in <= reader.data;
+                if writer.enable = '1' then
+                    period_in <= writer.data;
                     subperiods_written <= 0;
                     read_state <= WRITE_INTO_FIFO;
                 end if;
@@ -141,17 +140,17 @@ begin
     end process;
     writer.full <= '0' when read_state = WAIT_FOR_PERIOD_GIVEN else '1';
 
-    write_sm : process(writer.clk)
+    write_sm : process(reader.clk)
         variable offsets : Offsets_t;
     begin
-        if rising_edge(writer.clk) then
+        if rising_edge(reader.clk) then
             case write_state is
             when READ_FROM_FIFO =>
                 if fifo_empty = '0' then
                     -- Read subperiod from FIFO
                     offsets := get_offsets(subperiods_read);
                     for i in 0 to SAMPLES_PER_SUBPERIOD - 1 loop
-                        period_out(offsets.channel)(offsets.sample + i)
+                        reader.data(offsets.channel)(offsets.sample + i)
                             <= fifo_dout(
                                (SAMPLE_SIZE * BITS_PER_BYTE * (i + 1)) - 1
                                downto (SAMPLE_SIZE * BITS_PER_BYTE * i)
@@ -175,7 +174,7 @@ begin
                 write_state <= WAIT_FOR_PERIOD_TAKEN;
 
             when WAIT_FOR_PERIOD_TAKEN =>
-                if writer.enable = '0' then
+                if reader.enable = '0' then
                     subperiods_read <= 0;
                     write_state <= READ_FROM_FIFO;
                 end if;

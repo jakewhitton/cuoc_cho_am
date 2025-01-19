@@ -78,16 +78,19 @@ begin
                 counter <= counter + 1;
             else
                 if writer.full = '0' then
-                    period_in(0)(29) <= std_logic_vector(to_unsigned(42, 24));
+                    period_in(0)(29) <= std_logic_vector(to_unsigned(value, 24));
                     writer.enable <= '1';
                     counter <= 0;
                     value <= value + 1;
+                else
+                    writer.enable <= '0';
                 end if;
             end if;
         end if;
     end process;
     writer.data <= period_in;
     writer.clk <= i_clk;
+
 
     fifo : util.audio.period_fifo
         port map (
