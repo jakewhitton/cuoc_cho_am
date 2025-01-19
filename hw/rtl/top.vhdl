@@ -23,14 +23,18 @@ end top;
 
 architecture structure of top is
 
+    -- Intermediate signals for FIFO
+    signal reader : util.audio.PeriodFifo_ReaderPins_t;
+    signal writer : util.audio.PeriodFifo_WriterPins_t;
+
     -- Reader state
-    signal data : std_logic_vector(15 downto 0) := (others => '0');
+    signal period_out : util.audio.Period_t;
 
     -- Writer state
     constant CLKS_PER_SEC : natural                        := 100000000;
     signal   counter      : natural                        := 0;
-    signal   din          : std_logic_vector(767 downto 0) := (others => '0');
     signal   value        : natural                        := 0;
+    signal   period_in    : util.audio.Period_t;
 
 begin
 
@@ -50,38 +54,43 @@ begin
     --        o_spdif => o_spdif
     --    );
 
-
     -- Reader
-    fifo_reader : process(i_clk)
+    fifo_reader : process(reader.clk)
     begin
-        if rising_edge(i_clk) then
-            if fifo_empty = '0' then
-                fifo_rd_en <= '1';
-                data <= fifo_dout(15 downto 0);
+        if rising_edge(reader.clk) then
+            if reader.empty = '0' then
+                period_out <= reader.data;
+                reader.enable <= '1';
             else
-                fifo_rd_en <= '0';
+                reader.enable <= '0';
             end if;
         end if;
     end process;
-    o_leds(15) <= fifo_empty;
-    o_leds(14 downto 0) <= data(14 downto 0);
+    reader.clk <= i_clk;
 
     -- Writer
-    fifo_writer : process(i_clk)
+    fifo_writer : process(writer.clk)
     begin
-        if rising_edge(i_clk) then
+        if rising_edge(writer.clk) then
             if counter < CLKS_PER_SEC then
-                fifo_wr_en <= '0';
+                writer.enable <= '0';
                 counter <= counter + 1;
             else
-                if fifo_full = '0' then
-                    fifo_din(15 downto 0) <= std_logic_vector(to_unsigned(value, 16));
-                    fifo_wr_en <= '1';
+                if writer.full = '0' then
+                    writer.data <= period_in;
+                    writer.enable <= '1';
                     counter <= 0;
                     value <= value + 1;
                 end if;
             end if;
         end if;
     end process;
+    writer.clk <= i_clk;
+
+    fifo : util.audio.period_fifo
+        port map (
+            writer => writer,
+            reader => reader
+        );
 
 end structure;

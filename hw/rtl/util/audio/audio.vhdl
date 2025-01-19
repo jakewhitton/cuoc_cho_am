@@ -4,12 +4,16 @@ library ieee;
 
 package audio is
 
-    constant PERIOD_SIZE : natural := 128;
-    constant SAMPLE_SIZE : natural := 3;
+    constant BITS_PER_BYTE : natural := 8;
 
-    type Period_t is record
-        -- TODO
-    end record;
+    constant SAMPLE_SIZE : natural := 3;
+    subtype Sample_t is std_logic_vector(0 to (SAMPLE_SIZE * BITS_PER_BYTE) - 1);
+
+    constant PERIOD_SIZE : natural := 128;
+    type ChannelPcmData_t is array (0 to PERIOD_SIZE - 1) of Sample_t;
+
+    constant NUM_CHANNELS : natural := 2;
+    type Period_t is array (0 to NUM_CHANNELS - 1) of ChannelPcmData_t;
 
     type PeriodFifo_WriterPins_t is record
         clk    : std_logic;
@@ -34,9 +38,9 @@ package audio is
 
     view PeriodFifo_Reader_t of PeriodFifo_ReaderPins_t is
         clk    : in;
-        full   : out;
+        empty  : out;
         enable : in;
-        data   : in;
+        data   : out;
     end view;
 
     -- Transport whole periods of PCM data

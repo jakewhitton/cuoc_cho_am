@@ -44,6 +44,8 @@ set(RTL_SRC
     ${RTL_DIR}/util/signals/signals.vhdl
     ${RTL_DIR}/util/signals/clk_generator.vhdl
     ${RTL_DIR}/util/signals/phaser.vhdl
+    ${RTL_DIR}/util/audio/audio.vhdl
+    ${RTL_DIR}/util/audio/period_fifo.vhdl
 )
 
 # Define each IP module that needs to be instantiated and synthesized
