@@ -28,13 +28,13 @@ architecture structure of top is
     signal writer : util.audio.PeriodFifo_WriterPins_t;
 
     -- Reader state
-    signal period_out : util.audio.Period_t;
+    signal period_out : util.audio.Period_t := util.audio.Period_t_INIT;
 
     -- Writer state
-    constant CLKS_PER_SEC : natural                        := 100000000;
-    signal   counter      : natural                        := 0;
-    signal   value        : natural                        := 0;
-    signal   period_in    : util.audio.Period_t;
+    constant CLKS_PER_SEC : natural             := 100000000;
+    signal   counter      : natural             := 0;
+    signal   value        : natural             := 0;
+    signal   period_in    : util.audio.Period_t := util.audio.Period_t_INIT;
 
 begin
 
@@ -67,6 +67,7 @@ begin
         end if;
     end process;
     reader.clk <= i_clk;
+    o_leds(15 downto 0) <= period_out(0)(29)(8 to 23);
 
     -- Writer
     fifo_writer : process(writer.clk)
@@ -77,7 +78,7 @@ begin
                 counter <= counter + 1;
             else
                 if writer.full = '0' then
-                    writer.data <= period_in;
+                    period_in(0)(29) <= std_logic_vector(to_unsigned(42, 24));
                     writer.enable <= '1';
                     counter <= 0;
                     value <= value + 1;
@@ -85,6 +86,7 @@ begin
             end if;
         end if;
     end process;
+    writer.data <= period_in;
     writer.clk <= i_clk;
 
     fifo : util.audio.period_fifo

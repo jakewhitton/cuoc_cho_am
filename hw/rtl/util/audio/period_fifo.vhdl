@@ -57,7 +57,7 @@ architecture behavioral of period_fifo is
     );
     signal read_state         : ReadPeriodState_t := WAIT_FOR_PERIOD_GIVEN;
     signal subperiods_written : natural           := 0;
-    signal period_in          : Period_t;
+    signal period_in          : Period_t          := Period_t_INIT;
 
     -- Write state
     type WritePeriodState_t is (
@@ -67,7 +67,7 @@ architecture behavioral of period_fifo is
     );
     signal write_state     : WritePeriodState_t := READ_FROM_FIFO;
     signal subperiods_read : natural            := 0;
-    signal period_out      : Period_t;
+    signal period_out      : Period_t           := Period_t_INIT;
 
     type Offsets_t is record
         channel : natural;

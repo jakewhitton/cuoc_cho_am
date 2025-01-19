@@ -8,12 +8,15 @@ package audio is
 
     constant SAMPLE_SIZE : natural := 3;
     subtype Sample_t is std_logic_vector(0 to (SAMPLE_SIZE * BITS_PER_BYTE) - 1);
+    constant Sample_t_INIT : Sample_t := (others => '0');
 
     constant PERIOD_SIZE : natural := 128;
     type ChannelPcmData_t is array (0 to PERIOD_SIZE - 1) of Sample_t;
+    constant ChannelPcmData_t_INIT : ChannelPcmData_t := (others => Sample_t_INIT);
 
     constant NUM_CHANNELS : natural := 2;
     type Period_t is array (0 to NUM_CHANNELS - 1) of ChannelPcmData_t;
+    constant Period_t_INIT : Period_t := (others => ChannelPcmData_t_INIT);
 
     type PeriodFifo_WriterPins_t is record
         clk    : std_logic;
