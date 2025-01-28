@@ -1,15 +1,20 @@
-library ieee;
-    use ieee.std_logic_1164.all;
-    use ieee.numeric_std.all;
-
 library work;
     use work.ethernet.all;
     use work.protocol.all;
+
+library util;
+    use util.audio.all;
+    use util.types.all;
+
+library ieee;
+    use ieee.std_logic_1164.all;
+    use ieee.numeric_std.all;
 
 entity ethernet_trx is
     port (
         i_clk  : in   std_logic;
         phy    : view Phy_t;
+        writer : view PeriodFifo_Writer_t;
         o_leds : out  std_logic_vector(15 downto 0);
     );
 end ethernet_trx;
@@ -55,8 +60,13 @@ begin
 
     session_sm : process(ref_clk)
         variable pcm_data_msg : PcmDataMsg_t;
+        variable period       : Period_t;
     begin
         if rising_edge(ref_clk) then
+
+            -- Will be overwritten when a PCM data msg is received
+            writer.enable <= '0';
+
             case session_state is
             when WAIT_FOR_HANDSHAKE_REQUEST =>
                 -- If we've received a handshake request, transit
@@ -128,10 +138,9 @@ begin
 
                     if is_valid_pcm_data_msg(rx_frame) then
                         pcm_data_msg := get_pcm_data_msg(rx_frame);
-                        o_leds(15 downto 0) <= pcm_data_msg.pcm_l(
-                            (2 * BITS_PER_BYTE) to
-                            (4 * BITS_PER_BYTE) - 1
-                        );
+                        period := get_period(pcm_data_msg.period);
+                        writer.data <= period;
+                        writer.enable <= '1';
                     end if;
 
                 -- Otherwise, close session if we've exceeded heartbeat timeout
@@ -188,6 +197,7 @@ begin
             prev_rx_valid <= rx_valid;
         end if;
     end process;
+    writer.clk <= ref_clk;
 
     -- Derives 50MHz clk from 100MHz clk for feeding into PHY
     generate_50mhz_ref_clk : ip_clk_wizard_ethernet

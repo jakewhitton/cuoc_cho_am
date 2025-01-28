@@ -1,10 +1,11 @@
+library work;
+    use work.types.all;
+
 library ieee;
     use ieee.std_logic_1164.all;
     use ieee.numeric_std.all;
 
 package audio is
-
-    constant BITS_PER_BYTE : natural := 8;
 
     constant SAMPLE_SIZE : natural := 3;
     subtype Sample_t is std_logic_vector(0 to (SAMPLE_SIZE * BITS_PER_BYTE) - 1);

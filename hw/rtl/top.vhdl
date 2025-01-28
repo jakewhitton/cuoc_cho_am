@@ -9,7 +9,7 @@ library external_transport;
     use external_transport.all;
 
 library util;
-    use util.all;
+    use util.audio.all;
 
 entity top is
     port (
@@ -23,28 +23,24 @@ end top;
 
 architecture structure of top is
 
-    -- Intermediate signals for FIFO
-    signal reader : util.audio.PeriodFifo_ReaderPins_t;
-    signal writer : util.audio.PeriodFifo_WriterPins_t;
-
     -- Reader state
-    signal period_out : util.audio.Period_t := util.audio.Period_t_INIT;
+    signal period : Period_t := Period_t_INIT;
+    signal counter : natural := 0;
 
-    -- Writer state
-    constant CLKS_PER_SEC : natural             := 100000000;
-    signal   counter      : natural             := 0;
-    signal   value        : natural             := 0;
-    signal   period_in    : util.audio.Period_t := util.audio.Period_t_INIT;
+    -- Intermediate signals for playback FIFO
+    signal playback_reader : PeriodFifo_ReaderPins_t;
+    signal playback_writer : PeriodFifo_WriterPins_t;
 
 begin
 
     -- Ethernet transport
-    --ethernet_trx : sw_transport.ethernet.ethernet_trx
-    --    port map (
-    --        i_clk  => i_clk,
-    --        phy    => ethernet_phy,
-    --        o_leds => o_leds
-    --    );
+    ethernet_trx : sw_transport.ethernet.ethernet_trx
+        port map (
+            i_clk  => i_clk,
+            phy    => ethernet_phy,
+            writer => playback_writer,
+            o_leds => o_leds
+        );
 
     -- S/PDIF transport
     --spdif_trx : external_transport.spdif.spdif_trx
@@ -55,47 +51,32 @@ begin
     --    );
 
     -- Reader
-    fifo_reader : process(reader.clk)
+    fifo_reader : process(playback_reader.clk)
     begin
-        if rising_edge(reader.clk) then
-            if reader.empty = '0' then
-                period_out <= reader.data;
-                reader.enable <= '1';
+        if rising_edge(playback_reader.clk) then
+            if playback_reader.empty = '0' then
+                period <= playback_reader.data;
+                playback_reader.enable <= '1';
+
+                -- Display sample on LEDs if nonzero
+                for channel in 0 to NUM_CHANNELS - 1 loop
+                    for sample in 0 to PERIOD_SIZE - 1 loop
+                        if unsigned(playback_reader.data(channel)(sample)) > 0 then
+                            counter <= counter + 1;
+                        end if;
+                    end loop;
+                end loop;
             else
-                reader.enable <= '0';
+                playback_reader.enable <= '0';
             end if;
         end if;
     end process;
-    reader.clk <= i_clk;
-    o_leds(15 downto 0) <= period_out(0)(29)(8 to 23);
+    playback_reader.clk <= i_clk;
 
-    -- Writer
-    fifo_writer : process(writer.clk)
-    begin
-        if rising_edge(writer.clk) then
-            if counter < CLKS_PER_SEC then
-                writer.enable <= '0';
-                counter <= counter + 1;
-            else
-                if writer.full = '0' then
-                    period_in(0)(29) <= std_logic_vector(to_unsigned(value, 24));
-                    writer.enable <= '1';
-                    counter <= 0;
-                    value <= value + 1;
-                else
-                    writer.enable <= '0';
-                end if;
-            end if;
-        end if;
-    end process;
-    writer.data <= period_in;
-    writer.clk <= i_clk;
-
-
-    fifo : util.audio.period_fifo
+    playback_period_fifo : util.audio.period_fifo
         port map (
-            writer => writer,
-            reader => reader
+            writer => playback_writer,
+            reader => playback_reader
         );
 
 end structure;

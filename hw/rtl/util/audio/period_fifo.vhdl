@@ -1,8 +1,9 @@
-library ieee;
-    use ieee.std_logic_1164.all;
-
 library work;
     use work.audio.all;
+    use work.types.all;
+
+library ieee;
+    use ieee.std_logic_1164.all;
     
 entity period_fifo is
     port (

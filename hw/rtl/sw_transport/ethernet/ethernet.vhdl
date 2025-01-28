@@ -1,13 +1,12 @@
+library util;
+    use util.audio.all;
+    use util.types.all;
+
 library ieee;
     use ieee.std_logic_1164.all;
     use ieee.numeric_std.all;
 
 package ethernet is
-
-    -- Unit conversions
-    constant BITS_PER_DIBIT  : natural := 2;
-    constant DIBITS_PER_BYTE : natural := 4;
-    constant BITS_PER_BYTE   : natural := DIBITS_PER_BYTE * BITS_PER_DIBIT;
 
     -- Reduced Media-Independent Interface (RMII) implements 100Mbps
     -- ethernet by presenting dibits (2-bit sequences) on the rising
@@ -115,6 +114,7 @@ package ethernet is
         port (
             i_clk  : in   std_logic;
             phy    : view Phy_t;
+            writer : view PeriodFifo_Writer_t;
             o_leds : out  std_logic_vector(15 downto 0);
         );
     end component;

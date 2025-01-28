@@ -1,9 +1,12 @@
+library work;
+    use work.ethernet.all;
+
+library util;
+    use util.types.all;
+
 library ieee;
     use ieee.std_logic_1164.all;
     use ieee.numeric_std.all;
-
-library work;
-    use work.ethernet.all;
 
 entity ethernet_rx is
     port (

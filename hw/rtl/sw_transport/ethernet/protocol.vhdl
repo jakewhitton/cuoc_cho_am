@@ -1,9 +1,13 @@
+library work;
+    use work.ethernet.all;
+
+library util;
+    use util.audio.all;
+    use util.types.all;
+
 library ieee;
     use ieee.std_logic_1164.all;
     use ieee.numeric_std.all;
-
-library work;
-    use work.ethernet.all;
 
 package protocol is
 
@@ -110,17 +114,39 @@ package protocol is
 
 
     ----------------------------------PCM data----------------------------------
-    constant PERIOD_SIZE : natural := 128;
-    subtype PcmChannelData_t is std_logic_vector(
-        0 to (PERIOD_SIZE * 4 * BITS_PER_BYTE) - 1
+    -- Note:
+    --
+    -- When requesting 24-bit samples, ALSA left pads so that samples can be
+    -- stored in a uint32_t.  To make the driver copy logic more performant, we
+    -- simply pass along this data format into our PCM data messages.
+    --
+    -- The FPGA is responsible for converting from the unpacked representation
+    -- to the packed representation.
+    --
+    constant UNPACKED_SAMPLE_SIZE : natural := 4;
+    subtype UnpackedSample_t is std_logic_vector(
+        0 to (UNPACKED_SAMPLE_SIZE * BITS_PER_BYTE) - 1
     );
+    constant UnpackedSample_t_INIT : UnpackedSample_t := (others => '0');
+
+    type UnpackedChannelPcmData_t is array (
+        0 to PERIOD_SIZE - 1
+    ) of UnpackedSample_t;
+    constant UnpackedChannelPcmData_t_INIT : UnpackedChannelPcmData_t
+        := (others => UnpackedSample_t_INIT);
+
+    type UnpackedPeriod_t is array (
+        0 to NUM_CHANNELS - 1
+    ) of UnpackedChannelPcmData_t;
+    constant UnpackedPeriod_t_INIT : UnpackedPeriod_t
+        := (others => UnpackedChannelPcmData_t_INIT);
 
     type PcmDataMsg_t is record
         seqnum : unsigned(0 to (4 * BITS_PER_BYTE) - 1);
-        pcm_l  : PcmChannelData_t;
-        pcm_r  : PcmChannelData_t;
+        period : UnpackedPeriod_t;
     end record;
-    attribute size     of PcmDataMsg_t : type is 4 + (2 * PERIOD_SIZE);
+    attribute size     of PcmDataMsg_t : type is
+        4 + (2 * PERIOD_SIZE * UNPACKED_SAMPLE_SIZE);
     attribute msg_type of PcmDataMsg_t : type is X"02";
 
     function is_valid_pcm_data_msg(
@@ -130,6 +156,10 @@ package protocol is
     function get_pcm_data_msg(
         frame : Frame_t;
     ) return PcmDataMsg_t;
+
+    function get_period(
+        unpacked_period : UnpackedPeriod_t;
+    ) return Period_t;
     ----------------------------------------------------------------------------
 
 end package protocol;
@@ -377,20 +407,44 @@ package body protocol is
     function get_pcm_data_msg(
         frame : Frame_t;
     ) return PcmDataMsg_t is
+        variable offset : natural          := 0;
+        variable period : UnpackedPeriod_t := UnpackedPeriod_t_INIT;
     begin
+        for channel in 0 to NUM_CHANNELS - 1 loop
+            for sample in 0 to PERIOD_SIZE - 1 loop
+                offset := (10 * BITS_PER_BYTE) +
+                          ((PERIOD_SIZE * channel) + sample) *
+                          (UNPACKED_SAMPLE_SIZE * BITS_PER_BYTE);
+
+                period(channel)(sample) := frame.payload(
+                    offset to
+                    offset + (UNPACKED_SAMPLE_SIZE * BITS_PER_BYTE) - 1
+                );
+            end loop;
+        end loop;
+
         return (
             seqnum => unsigned(frame.payload(
                 (6 * BITS_PER_BYTE) to (10 * BITS_PER_BYTE) - 1
             )),
-            pcm_l => frame.payload(
-                (10 * BITS_PER_BYTE) to
-                ((10 + (PERIOD_SIZE * 4)) * BITS_PER_BYTE) - 1
-            ),
-            pcm_r => frame.payload(
-                ((10 + (PERIOD_SIZE * 4)) * BITS_PER_BYTE) to
-                ((10 + 2 * (PERIOD_SIZE * 4)) * BITS_PER_BYTE) - 1
-            )
+            period => period
         );
+    end function;
+
+    function get_period(
+        unpacked_period : UnpackedPeriod_t;
+    ) return Period_t is
+        variable period : Period_t := Period_t_INIT;
+    begin
+        for channel in 0 to NUM_CHANNELS - 1 loop
+            for sample in 0 to PERIOD_SIZE - 1 loop
+                period(channel)(sample) := unpacked_period(channel)(sample)(
+                    8 to 31
+                );
+            end loop;
+        end loop;
+
+        return period;
     end function;
     ----------------------------------------------------------------------------
 
