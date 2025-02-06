@@ -23,23 +23,24 @@ end top;
 
 architecture structure of top is
 
-    -- Reader state
-    signal period : Period_t := Period_t_INIT;
-    signal counter : natural := 0;
-
     -- Intermediate signals for playback FIFO
     signal playback_reader : PeriodFifo_ReaderPins_t;
     signal playback_writer : PeriodFifo_WriterPins_t;
+
+    -- Intermediate signals for capture FIFO
+    signal capture_reader : PeriodFifo_ReaderPins_t;
+    --signal capture_writer : PeriodFifo_WriterPins_t;
 
 begin
 
     -- Ethernet transport
     ethernet_trx : sw_transport.ethernet.ethernet_trx
         port map (
-            i_clk  => i_clk,
-            phy    => ethernet_phy,
-            writer => playback_writer,
-            o_leds => o_leds
+            i_clk           => i_clk,
+            phy             => ethernet_phy,
+            playback_writer => playback_writer,
+            capture_reader  => capture_reader,
+            o_leds          => o_leds
         );
 
     -- S/PDIF transport
@@ -50,33 +51,13 @@ begin
     --        o_spdif => o_spdif
     --    );
 
-    -- Reader
-    fifo_reader : process(playback_reader.clk)
-    begin
-        if rising_edge(playback_reader.clk) then
-            if playback_reader.empty = '0' then
-                period <= playback_reader.data;
-                playback_reader.enable <= '1';
-
-                -- Display sample on LEDs if nonzero
-                for channel in 0 to NUM_CHANNELS - 1 loop
-                    for sample in 0 to PERIOD_SIZE - 1 loop
-                        if unsigned(playback_reader.data(channel)(sample)) > 0 then
-                            counter <= counter + 1;
-                        end if;
-                    end loop;
-                end loop;
-            else
-                playback_reader.enable <= '0';
-            end if;
-        end if;
-    end process;
-    playback_reader.clk <= i_clk;
-
     playback_period_fifo : util.audio.period_fifo
         port map (
             writer => playback_writer,
             reader => playback_reader
         );
+
+    -- For now, simply loopback playback data into capture for testing
+    capture_reader <= playback_reader;
 
 end structure;

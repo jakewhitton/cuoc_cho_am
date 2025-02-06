@@ -12,10 +12,11 @@ library ieee;
 
 entity ethernet_trx is
     port (
-        i_clk  : in   std_logic;
-        phy    : view Phy_t;
-        writer : view PeriodFifo_Writer_t;
-        o_leds : out  std_logic_vector(15 downto 0);
+        i_clk           : in   std_logic;
+        phy             : view Phy_t;
+        playback_writer : view PeriodFifo_Writer_t;
+        capture_reader  : view PeriodFifo_Reader_t;
+        o_leds          : out  std_logic_vector(15 downto 0);
     );
 end ethernet_trx;
 
@@ -30,15 +31,18 @@ architecture behavioral of ethernet_trx is
         SEND_HANDSHAKE_RESPONSE,
         SESSION_OPEN,
         SEND_HEARTBEAT,
-        SEND_CLOSE
+        SEND_CLOSE,
+        SEND_PCM_DATA
     );
-    signal session_state    : SessionState_t := WAIT_FOR_HANDSHAKE_REQUEST;
-    signal prev_rx_valid    : std_logic      := '0';
-    signal host_mac_address : MacAddress_t   := MAC_ADDRESS_BROADCAST;
-    signal generation_id    : GenerationId_t := to_unsigned(0, 8);
-    signal counter          : natural        := 0;
-    signal elapsed          : natural        := 0;
-    signal period           : Period_t       := Period_t_INIT;
+    signal session_state    : SessionState_t    := WAIT_FOR_HANDSHAKE_REQUEST;
+    signal prev_rx_valid    : std_logic         := '0';
+    signal host_mac_address : MacAddress_t      := MAC_ADDRESS_BROADCAST;
+    signal generation_id    : GenerationId_t    := to_unsigned(0, 8);
+    signal counter          : natural           := 0;
+    signal elapsed          : natural           := 0;
+    signal playback_period  : Period_t          := Period_t_INIT;
+    signal pcm_data_seqnum  : unsigned(0 to 31) := to_unsigned(0, 32);
+    signal capture_period   : Period_t          := Period_t_INIT;
 
     -- 50MHz reference clk that drives ethernet PHY
     component ip_clk_wizard_ethernet is
@@ -65,7 +69,8 @@ begin
         if rising_edge(ref_clk) then
 
             -- Will be overwritten when a PCM data msg is received
-            writer.enable <= '0';
+            playback_writer.enable <= '0';
+            capture_reader.enable <= '0';
 
             case session_state is
             when WAIT_FOR_HANDSHAKE_REQUEST =>
@@ -130,6 +135,15 @@ begin
                     session_state <= SEND_HEARTBEAT;
                 end if;
 
+                -- If we've received a period via capture, transmit it
+                if capture_reader.empty = '0' then
+                    capture_period <= capture_reader.data;
+                    capture_reader.enable <= '1';
+
+                    session_state <= SEND_PCM_DATA;
+                    counter <= 0;
+                end if;
+
                 -- If we've received a CCO msg, reset elapsed timer
                 if prev_rx_valid = '0' and rx_valid = '1' and
                    is_valid_msg(rx_frame)
@@ -138,9 +152,10 @@ begin
 
                     if is_valid_pcm_data_msg(rx_frame) then
                         pcm_data_msg := get_pcm_data_msg(rx_frame);
-                        period <= get_period(pcm_data_msg.period);
-                        writer.enable <= '1';
+                        playback_period <= get_period(pcm_data_msg.period);
+                        playback_writer.enable <= '1';
                     end if;
+
 
                 -- Otherwise, close session if we've exceeded heartbeat timeout
                 elsif elapsed < TIMEOUT_INTERVAL * CLKS_PER_SEC then
@@ -192,12 +207,33 @@ begin
                     counter <= 0;
                     session_state <= WAIT_FOR_HANDSHAKE_REQUEST;
                 end if;
+
+            when SEND_PCM_DATA =>
+                if counter = 0 then
+                    tx_valid <= '0';
+                    counter <= 1;
+                else
+                    tx_frame <= build_pcm_data_msg(
+                        dest_mac      => host_mac_address,
+                        src_mac       => MAC_ADDRESS_CCO,
+                        generation_id => generation_id,
+                        seqnum        => pcm_data_seqnum,
+                        period        => capture_period
+                    );
+                    tx_valid <= '1';
+
+                    pcm_data_seqnum <= pcm_data_seqnum + 1;
+
+                    counter <= 0;
+                    session_state <= SESSION_OPEN;
+                end if;
             end case;
             prev_rx_valid <= rx_valid;
         end if;
     end process;
-    writer.clk <= ref_clk;
-    writer.data <= period;
+    playback_writer.clk <= ref_clk;
+    playback_writer.data <= playback_period;
+    capture_reader.clk <= ref_clk;
 
     -- Derives 50MHz clk from 100MHz clk for feeding into PHY
     generate_50mhz_ref_clk : ip_clk_wizard_ethernet

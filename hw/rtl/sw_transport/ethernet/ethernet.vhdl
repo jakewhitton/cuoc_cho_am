@@ -112,10 +112,11 @@ package ethernet is
     -- Ethernet sending/receiving
     component ethernet_trx is
         port (
-            i_clk  : in   std_logic;
-            phy    : view Phy_t;
-            writer : view PeriodFifo_Writer_t;
-            o_leds : out  std_logic_vector(15 downto 0);
+            i_clk           : in   std_logic;
+            phy             : view Phy_t;
+            playback_writer : view PeriodFifo_Writer_t;
+            capture_reader  : view PeriodFifo_Reader_t;
+            o_leds          : out  std_logic_vector(15 downto 0);
         );
     end component;
 

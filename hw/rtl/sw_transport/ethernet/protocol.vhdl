@@ -160,6 +160,14 @@ package protocol is
     function get_period(
         unpacked_period : UnpackedPeriod_t;
     ) return Period_t;
+
+    function build_pcm_data_msg(
+        dest_mac      : MacAddress_t;
+        src_mac       : MacAddress_t;
+        generation_id : GenerationId_t;
+        seqnum        : unsigned(0 to (4 * BITS_PER_BYTE) - 1);
+        period        : Period_t;
+    ) return Frame_t;
     ----------------------------------------------------------------------------
 
 end package protocol;
@@ -445,6 +453,42 @@ package body protocol is
         end loop;
 
         return period;
+    end function;
+
+    function build_pcm_data_msg(
+        dest_mac      : MacAddress_t;
+        src_mac       : MacAddress_t;
+        generation_id : GenerationId_t;
+        seqnum        : unsigned(0 to (4 * BITS_PER_BYTE) - 1);
+        period        : Period_t;
+    ) return Frame_t is
+        variable frame  : Frame_t := Frame_t_INIT;
+        variable offset : natural := 0;
+    begin
+        frame := build_msg(
+            dest_mac      => dest_mac,
+            src_mac       => src_mac,
+            generation_id => generation_id,
+            msg_type      => PcmDataMsg_t'msg_type
+        );
+
+        frame.payload(
+            (6 * BITS_PER_BYTE) to (10 * BITS_PER_BYTE) - 1
+        ) := std_logic_vector(seqnum);
+
+        for channel in 0 to NUM_CHANNELS - 1 loop
+            for sample in 0 to PERIOD_SIZE - 1 loop
+                offset := (10 * BITS_PER_BYTE) +
+                          (PERIOD_SIZE * UNPACKED_SAMPLE_SIZE *
+                           BITS_PER_BYTE * channel ) +
+                          (UNPACKED_SAMPLE_SIZE * BITS_PER_BYTE * sample) +
+                          (BITS_PER_BYTE);
+
+                frame.payload(offset to offset + 23) := period(channel)(sample);
+            end loop;
+        end loop;
+
+        return frame;
     end function;
     ----------------------------------------------------------------------------
 
