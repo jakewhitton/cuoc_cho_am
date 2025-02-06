@@ -38,6 +38,7 @@ architecture behavioral of ethernet_trx is
     signal generation_id    : GenerationId_t := to_unsigned(0, 8);
     signal counter          : natural        := 0;
     signal elapsed          : natural        := 0;
+    signal period           : Period_t       := Period_t_INIT;
 
     -- 50MHz reference clk that drives ethernet PHY
     component ip_clk_wizard_ethernet is
@@ -60,7 +61,6 @@ begin
 
     session_sm : process(ref_clk)
         variable pcm_data_msg : PcmDataMsg_t;
-        variable period       : Period_t;
     begin
         if rising_edge(ref_clk) then
 
@@ -138,8 +138,7 @@ begin
 
                     if is_valid_pcm_data_msg(rx_frame) then
                         pcm_data_msg := get_pcm_data_msg(rx_frame);
-                        period := get_period(pcm_data_msg.period);
-                        writer.data <= period;
+                        period <= get_period(pcm_data_msg.period);
                         writer.enable <= '1';
                     end if;
 
@@ -198,6 +197,7 @@ begin
         end if;
     end process;
     writer.clk <= ref_clk;
+    writer.data <= period;
 
     -- Derives 50MHz clk from 100MHz clk for feeding into PHY
     generate_50mhz_ref_clk : ip_clk_wizard_ethernet
