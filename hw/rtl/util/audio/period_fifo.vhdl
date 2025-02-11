@@ -7,8 +7,8 @@ library ieee;
     
 entity period_fifo is
     port (
-        writer : view PeriodFifo_Writer_t;
-        reader : view PeriodFifo_Reader_t;
+        writer : view PeriodFifo_WriterDriver_t;
+        reader : view PeriodFifo_ReaderDriver_t;
     );
 end period_fifo;
 

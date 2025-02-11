@@ -28,7 +28,7 @@ architecture structure of top is
     signal playback_writer : PeriodFifo_WriterPins_t;
 
     -- Intermediate signals for capture FIFO
-    signal capture_reader : PeriodFifo_ReaderPins_t;
+    --signal capture_reader : PeriodFifo_ReaderPins_t;
     --signal capture_writer : PeriodFifo_WriterPins_t;
 
 begin
@@ -39,7 +39,7 @@ begin
             i_clk           => i_clk,
             phy             => ethernet_phy,
             playback_writer => playback_writer,
-            capture_reader  => capture_reader,
+            capture_reader  => playback_reader,
             o_leds          => o_leds
         );
 
@@ -56,8 +56,5 @@ begin
             writer => playback_writer,
             reader => playback_reader
         );
-
-    -- For now, simply loopback playback data into capture for testing
-    capture_reader <= playback_reader;
 
 end structure;
