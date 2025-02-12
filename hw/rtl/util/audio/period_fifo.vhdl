@@ -62,11 +62,11 @@ architecture behavioral of period_fifo is
 
     -- Write state
     type WritePeriodState_t is (
+        WAIT_FOR_FIFO_DATA,
         READ_FROM_FIFO,
-        WRITE_CLEANUP,
         WAIT_FOR_PERIOD_TAKEN
     );
-    signal write_state     : WritePeriodState_t := READ_FROM_FIFO;
+    signal write_state     : WritePeriodState_t := WAIT_FOR_FIFO_DATA;
     signal subperiods_read : natural            := 0;
 
     type Offsets_t is record
@@ -146,38 +146,42 @@ begin
     begin
         if rising_edge(reader.clk) then
             case write_state is
-            when READ_FROM_FIFO =>
+            when WAIT_FOR_FIFO_DATA =>
+                -- Wait for data to be present, then burn cycle initiating read
                 if fifo_empty = '0' then
-                    -- Read subperiod from FIFO
-                    offsets := get_offsets(subperiods_read);
-                    for i in 0 to SAMPLES_PER_SUBPERIOD - 1 loop
-                        reader.data(offsets.channel)(offsets.sample + i)
-                            <= fifo_dout(
-                               (SAMPLE_SIZE * BITS_PER_BYTE * (i + 1)) - 1
-                               downto (SAMPLE_SIZE * BITS_PER_BYTE * i)
-                            );
-                    end loop;
                     fifo_rd_en <= '1';
+                    write_state <= READ_FROM_FIFO;
+                end if;
 
-                    -- Wait until final subperiod is read, then transit
-                    if subperiods_read + 1 < SUBPERIODS_PER_PERIOD then
-                        subperiods_read <= subperiods_read + 1;
-                    else
-                        write_state <= WRITE_CLEANUP;
+            when READ_FROM_FIFO =>
+                -- Read subperiod from FIFO
+                offsets := get_offsets(subperiods_read);
+                for i in 0 to SAMPLES_PER_SUBPERIOD - 1 loop
+                    reader.data(offsets.channel)(offsets.sample + i)
+                        <= fifo_dout(
+                            (SAMPLE_SIZE * BITS_PER_BYTE * (i + 1)) - 1
+                            downto (SAMPLE_SIZE * BITS_PER_BYTE * i)
+                        );
+                end loop;
+
+                -- Otherwise, wait until final subperiod is read, then transit
+                if subperiods_read + 1 < SUBPERIODS_PER_PERIOD then
+                    subperiods_read <= subperiods_read + 1;
+
+                    -- If no more data is available, go back to waiting for data
+                    if fifo_empty = '0' then
+                        fifo_rd_en <= '0';
+                        write_state <= WAIT_FOR_FIFO_DATA;
                     end if;
                 else
                     fifo_rd_en <= '0';
+                    write_state <= WAIT_FOR_PERIOD_TAKEN;
                 end if;
-
-            when WRITE_CLEANUP =>
-                -- Burn cycle completing previously initiated read & transit
-                fifo_rd_en <= '0';
-                write_state <= WAIT_FOR_PERIOD_TAKEN;
 
             when WAIT_FOR_PERIOD_TAKEN =>
                 if reader.enable = '0' then
                     subperiods_read <= 0;
-                    write_state <= READ_FROM_FIFO;
+                    write_state <= WAIT_FOR_FIFO_DATA;
                 end if;
             end case;
         end if;
