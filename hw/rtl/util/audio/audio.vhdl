@@ -69,4 +69,13 @@ package audio is
         );
     end component;
 
+    -- Loopback whole periods of PCM data
+    component period_loopback is
+        port (
+            i_clk  : in   std_logic;
+            reader : view PeriodFifo_Reader_t;
+            writer : view PeriodFifo_Writer_t;
+        );
+    end component;
+
 end package audio;

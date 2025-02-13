@@ -28,8 +28,8 @@ architecture structure of top is
     signal playback_writer : PeriodFifo_WriterPins_t;
 
     -- Intermediate signals for capture FIFO
-    --signal capture_reader : PeriodFifo_ReaderPins_t;
-    --signal capture_writer : PeriodFifo_WriterPins_t;
+    signal capture_reader : PeriodFifo_ReaderPins_t;
+    signal capture_writer : PeriodFifo_WriterPins_t;
 
 begin
 
@@ -39,7 +39,7 @@ begin
             i_clk           => i_clk,
             phy             => ethernet_phy,
             playback_writer => playback_writer,
-            capture_reader  => playback_reader,
+            capture_reader  => capture_reader,
             o_leds          => o_leds
         );
 
@@ -55,6 +55,19 @@ begin
         port map (
             writer => playback_writer,
             reader => playback_reader
+        );
+
+    capture_period_fifo : util.audio.period_fifo
+        port map (
+            writer => capture_writer,
+            reader => capture_reader
+        );
+
+    loopback : util.audio.period_loopback
+        port map (
+            i_clk  => i_clk,
+            reader => playback_reader,
+            writer => capture_writer
         );
 
 end structure;

@@ -46,6 +46,7 @@ set(RTL_SRC
     ${RTL_DIR}/util/signals/phaser.vhdl
     ${RTL_DIR}/util/audio/audio.vhdl
     ${RTL_DIR}/util/audio/period_fifo.vhdl
+    ${RTL_DIR}/util/audio/period_loopback.vhdl
     ${RTL_DIR}/util/types/types.vhdl
 )
 
