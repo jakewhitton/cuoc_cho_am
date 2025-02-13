@@ -179,7 +179,7 @@ begin
                 end if;
 
             when WAIT_FOR_PERIOD_TAKEN =>
-                if reader.enable = '0' then
+                if reader.enable = '1' then
                     subperiods_read <= 0;
                     write_state <= WAIT_FOR_FIFO_DATA;
                 end if;
