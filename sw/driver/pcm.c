@@ -61,6 +61,8 @@ static int cco_pcm_device_init(struct cco_pcm *pcm, struct cco_device *dev,
 
     pcm->pcm = pcm_tmp;
 
+    pcm->active = false;
+
     INIT_LIST_HEAD(&pcm->periods);
     for (int i = 0; i < ARRAY_SIZE(pcm->cursors); ++i) {
         pcm->cursors[i] = &pcm->periods;
@@ -419,11 +421,23 @@ static int cco_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
     struct cco_device *dev = snd_pcm_substream_chip(substream);
     struct cco_session *session = dev->session;
 
+    // Deduce which pcm instance is being triggered
+    struct cco_pcm *pcm = NULL;
+    if (substream->pcm == dev->playback.pcm) {
+        pcm = &dev->playback;
+    } else if (substream->pcm == dev->capture.pcm) {
+        pcm = &dev->capture;
+    } else {
+        err = -ENODEV;
+        goto exit_error;
+    }
+
     switch (cmd) {
         case SNDRV_PCM_TRIGGER_START:
 
-            // Notify FPGA that stream should begin
-            send_pcm_ctl(session, PCM_CTL_START);
+            // Communicate change in stream state to FPGA
+            pcm->active = true;
+            send_pcm_ctl(session);
 
             spin_lock(&impl->lock);
             impl->base_time = jiffies;
@@ -434,8 +448,9 @@ static int cco_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 
         case SNDRV_PCM_TRIGGER_STOP:
 
-            // Notify FPGA that stream should begin
-            send_pcm_ctl(session, PCM_CTL_STOP);
+            // Communicate change in stream state to FPGA
+            pcm->active = false;
+            send_pcm_ctl(session);
 
             spin_lock(&impl->lock);
             del_timer(&impl->timer);

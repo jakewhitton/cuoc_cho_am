@@ -7,9 +7,10 @@ library ieee;
 
 entity period_loopback is
     port (
-        i_clk  : in   std_logic;
-        reader : view PeriodFifo_Reader_t;
-        writer : view PeriodFifo_Writer_t;
+        i_clk     : in   std_logic;
+        i_streams : in   Streams_t;
+        reader    : view PeriodFifo_Reader_t;
+        writer    : view PeriodFifo_Writer_t;
     );
 end period_loopback;
 
@@ -47,15 +48,20 @@ begin
             reader.enable <= '0';
             writer.enable <= '0';
 
-            if begin_period = '1' and writer.full = '0' then
-                if reader.empty = '0' then
+            if begin_period = '1' then
+
+                -- If playback is active, read playback data
+                if i_streams.playback.active = '1' and reader.empty = '0' then
                     loopback_period <= reader.data;
                     reader.enable <= '1';
                 else
                     loopback_period <= Period_t_INIT;
                 end if;
 
-                writer.enable <= '1';
+                -- If capture is active, write capture data
+                if i_streams.capture.active = '1' and writer.full = '0' then
+                    writer.enable <= '1';
+                end if;
             end if;
         end if;
     end process;

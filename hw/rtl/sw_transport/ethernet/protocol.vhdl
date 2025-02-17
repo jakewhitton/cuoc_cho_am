@@ -95,13 +95,10 @@ package protocol is
 
     ---------------------------------PCM control--------------------------------
     type PcmCtlMsg_t is record
-        msg_type : MsgType_t;
+        streams : Streams_t;
     end record;
     attribute size     of PcmCtlMsg_t : type is 1;
     attribute msg_type of PcmCtlMsg_t : type is X"01";
-
-    constant PcmCtl_Start : MsgType_t := X"00";
-    constant PcmCtl_Stop  : MsgType_t := X"01";
 
     function is_valid_pcm_ctl_msg(
         frame : Frame_t;
@@ -382,8 +379,13 @@ package body protocol is
     ) return PcmCtlMsg_t is
     begin
         return (
-            msg_type => frame.payload(
-                (6 * BITS_PER_BYTE) to (7 * BITS_PER_BYTE) - 1
+            streams => (
+                playback => (
+                    active => frame.payload((6 * BITS_PER_BYTE) + 7)
+                ),
+                capture => (
+                    active => frame.payload((6 * BITS_PER_BYTE) + 6)
+                )
             )
         );
     end function;

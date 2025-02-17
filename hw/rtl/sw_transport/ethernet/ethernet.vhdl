@@ -116,6 +116,7 @@ package ethernet is
             phy             : view Phy_t;
             playback_writer : view PeriodFifo_Writer_t;
             capture_reader  : view PeriodFifo_Reader_t;
+            o_streams       : out  Streams_t;
             o_leds          : out  std_logic_vector(15 downto 0);
         );
     end component;

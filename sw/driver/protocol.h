@@ -49,15 +49,12 @@ typedef struct
 
 
 /*=================================PCM control================================*/
-enum PcmCtlMsgType_t
-{
-    PCM_CTL_START = 0,
-    PCM_CTL_STOP  = 1
-};
+#define PCM_CTL_PLAYBACK 0x1
+#define PCM_CTL_CAPTURE  0x2
 
 typedef struct
 {
-    uint8_t msg_type;
+    uint8_t streams;
 } __attribute__((packed)) PcmCtlMsg_t;
 /*============================================================================*/
 

@@ -19,6 +19,24 @@ package audio is
     type Period_t is array (0 to NUM_CHANNELS - 1) of ChannelPcmData_t;
     constant Period_t_INIT : Period_t := (others => ChannelPcmData_t_INIT);
 
+    type StreamStatus_t is record
+        active : std_logic;
+    end record;
+
+    constant StreamStatus_t_INIT : StreamStatus_t := (
+        active => '0'
+    );
+
+    type Streams_t is record
+        playback : StreamStatus_t;
+        capture  : StreamStatus_t;
+    end record;
+
+    constant Streams_t_INIT : Streams_t := (
+        playback => StreamStatus_t_INIT,
+        capture  => StreamStatus_t_INIT
+    );
+
     type PeriodFifo_WriterPins_t is record
         clk    : std_logic;
         full   : std_logic;
@@ -72,9 +90,10 @@ package audio is
     -- Loopback whole periods of PCM data
     component period_loopback is
         port (
-            i_clk  : in   std_logic;
-            reader : view PeriodFifo_Reader_t;
-            writer : view PeriodFifo_Writer_t;
+            i_clk     : in   std_logic;
+            i_streams : in   Streams_t;
+            reader    : view PeriodFifo_Reader_t;
+            writer    : view PeriodFifo_Writer_t;
         );
     end component;
 

@@ -12,6 +12,7 @@ struct cco_pcm {
     struct list_head periods;
     struct list_head *cursors[CHANNELS_PER_PACKET];
     uint32_t seqnum;
+    bool active;
 
     struct cco_device *dev;
 };

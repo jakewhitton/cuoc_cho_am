@@ -143,9 +143,17 @@ exit_error:
     return err;
 }
 
-int send_pcm_ctl(struct cco_session *session, uint8_t msg_type)
+int send_pcm_ctl(struct cco_session *session)
 {
     int err;
+
+    // Deduce streams flags based on stream state
+    struct cco_device *dev = session->dev;
+    uint8_t streams = 0;
+    if (dev->playback.active)
+        streams |= PCM_CTL_PLAYBACK;
+    if (dev->capture.active)
+        streams |= PCM_CTL_CAPTURE;
 
     struct sk_buff *skb;
     err = create_cco_packet(session, PCM_CTL, &skb);
@@ -154,7 +162,7 @@ int send_pcm_ctl(struct cco_session *session, uint8_t msg_type)
 
     PcmCtlMsg_t *msg;
     msg = (PcmCtlMsg_t *)skb_put(skb, sizeof(PcmCtlMsg_t));
-    msg->msg_type = msg_type;
+    msg->streams = streams;
 
     err = packet_send(session, skb);
     if (err < 0)

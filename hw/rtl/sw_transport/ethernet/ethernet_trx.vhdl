@@ -16,6 +16,7 @@ entity ethernet_trx is
         phy             : view Phy_t;
         playback_writer : view PeriodFifo_Writer_t;
         capture_reader  : view PeriodFifo_Reader_t;
+        o_streams       : out  Streams_t;
         o_leds          : out  std_logic_vector(15 downto 0);
     );
 end ethernet_trx;
@@ -43,6 +44,7 @@ architecture behavioral of ethernet_trx is
     signal playback_period  : Period_t          := Period_t_INIT;
     signal pcm_data_seqnum  : unsigned(0 to 31) := to_unsigned(0, 32);
     signal capture_period   : Period_t          := Period_t_INIT;
+    signal streams          : Streams_t         := Streams_t_INIT;
 
     -- 50MHz reference clk that drives ethernet PHY
     component ip_clk_wizard_ethernet is
@@ -64,6 +66,7 @@ architecture behavioral of ethernet_trx is
 begin
 
     session_sm : process(ref_clk)
+        variable pcm_ctl_msg  : PcmCtlMsg_t;
         variable pcm_data_msg : PcmDataMsg_t;
     begin
         if rising_edge(ref_clk) then
@@ -150,12 +153,15 @@ begin
                 then
                     elapsed <= 0;
 
-                    if is_valid_pcm_data_msg(rx_frame) then
+                    if is_valid_pcm_ctl_msg(rx_frame) then
+                        pcm_ctl_msg := get_pcm_ctl_msg(rx_frame);
+                        streams <= pcm_ctl_msg.streams;
+
+                    elsif is_valid_pcm_data_msg(rx_frame) then
                         pcm_data_msg := get_pcm_data_msg(rx_frame);
                         playback_period <= get_period(pcm_data_msg.period);
                         playback_writer.enable <= '1';
                     end if;
-
 
                 -- Otherwise, close session if we've exceeded heartbeat timeout
                 elsif elapsed < TIMEOUT_INTERVAL * CLKS_PER_SEC then
@@ -234,6 +240,7 @@ begin
     playback_writer.clk <= ref_clk;
     playback_writer.data <= playback_period;
     capture_reader.clk <= ref_clk;
+    o_streams <= streams;
 
     -- Derives 50MHz clk from 100MHz clk for feeding into PHY
     generate_50mhz_ref_clk : ip_clk_wizard_ethernet

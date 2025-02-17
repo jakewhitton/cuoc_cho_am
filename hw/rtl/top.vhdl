@@ -23,6 +23,8 @@ end top;
 
 architecture structure of top is
 
+    signal streams : Streams_t := Streams_t_INIT;
+
     -- Intermediate signals for playback FIFO
     signal playback_reader : PeriodFifo_ReaderPins_t;
     signal playback_writer : PeriodFifo_WriterPins_t;
@@ -40,6 +42,7 @@ begin
             phy             => ethernet_phy,
             playback_writer => playback_writer,
             capture_reader  => capture_reader,
+            o_streams       => streams,
             o_leds          => o_leds
         );
 
@@ -65,9 +68,10 @@ begin
 
     loopback : util.audio.period_loopback
         port map (
-            i_clk  => i_clk,
-            reader => playback_reader,
-            writer => capture_writer
+            i_clk     => i_clk,
+            i_streams => streams,
+            reader    => playback_reader,
+            writer    => capture_writer
         );
 
 end structure;
