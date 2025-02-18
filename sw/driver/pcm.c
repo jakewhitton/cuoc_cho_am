@@ -145,6 +145,33 @@ struct cco_pcm_period {
     unsigned sizes[CHANNELS_PER_PACKET];
 };
 
+static void cco_pcm_reset(struct cco_pcm *pcm)
+{
+    // Free all PCM data stored
+    struct list_head *pos = pcm->periods.next;
+    while (!list_is_head(pos, &pcm->periods)) {
+        struct list_head *next = pos->next;
+        struct cco_pcm_period *period;
+        period = list_entry(pos, struct cco_pcm_period, list);
+
+        // Remove period from list
+        list_del(pos);
+
+        // Free memory associated with period
+        if (period->skb)
+            kfree_skb(period->skb);
+        kfree(period);
+
+        pos = next;
+    }
+
+    // Reset list & cursors
+    INIT_LIST_HEAD(&pcm->periods);
+    for (int i = 0; i < ARRAY_SIZE(pcm->cursors); ++i) {
+        pcm->cursors[i] = &pcm->periods;
+    }
+}
+
 static int cco_pcm_alloc_period(struct cco_pcm *pcm, struct sk_buff *skb,
                                 struct cco_pcm_period **result)
 {
@@ -381,8 +408,30 @@ exit_error:
 static int cco_pcm_close(struct snd_pcm_substream *substream)
 {
     //printk(KERN_INFO "cco_pcm_close(0x%px)\n", substream);
+
+    int err;
+
+    // Deduce which PCM instance this substream corresponds to
+    struct cco_device *dev = snd_pcm_substream_chip(substream);
+    struct cco_pcm *pcm;
+    if (substream->pcm == dev->playback.pcm) {
+        pcm = &dev->playback;
+    } else if (substream->pcm == dev->capture.pcm) {
+        pcm = &dev->capture;
+    } else {
+        err = -ENODEV;
+        goto exit_error;
+    }
+
+    cco_pcm_reset(pcm);
+
     kfree(substream->runtime->private_data);
+
     return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
 }
 
 static int cco_pcm_hw_params(struct snd_pcm_substream *substream,
