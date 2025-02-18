@@ -346,7 +346,7 @@ static void cco_pcm_timer_update(struct cco_pcm_impl *impl);
 
 static int cco_pcm_open(struct snd_pcm_substream *substream)
 {
-    printk(KERN_INFO "cco_pcm_open(0x%px)\n", substream);
+    //printk(KERN_INFO "cco_pcm_open(0x%px)\n", substream);
 
     int err;
 
@@ -380,7 +380,7 @@ exit_error:
 
 static int cco_pcm_close(struct snd_pcm_substream *substream)
 {
-    printk(KERN_INFO "cco_pcm_close(0x%px)\n", substream);
+    //printk(KERN_INFO "cco_pcm_close(0x%px)\n", substream);
     kfree(substream->runtime->private_data);
     return 0;
 }
@@ -388,15 +388,15 @@ static int cco_pcm_close(struct snd_pcm_substream *substream)
 static int cco_pcm_hw_params(struct snd_pcm_substream *substream,
                              struct snd_pcm_hw_params *hw_params)
 {
-    printk(KERN_INFO "cco_pcm_hw_params(0x%px, 0x%px)\n",
-           substream, hw_params);
+    //printk(KERN_INFO "cco_pcm_hw_params(0x%px, 0x%px)\n",
+    //       substream, hw_params);
 
     return 0;
 }
 
 static int cco_pcm_prepare(struct snd_pcm_substream *substream)
 {
-    printk(KERN_INFO "cco_pcm_prepare(0x%px)\n", substream);
+    //printk(KERN_INFO "cco_pcm_prepare(0x%px)\n", substream);
 
     struct snd_pcm_runtime *runtime = substream->runtime;
     struct cco_pcm_impl *impl = runtime->private_data;
@@ -413,7 +413,7 @@ static int cco_pcm_prepare(struct snd_pcm_substream *substream)
 
 static int cco_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
 {
-    printk(KERN_INFO "cco_pcm_trigger(0x%px, %d)\n", substream, cmd);
+    //printk(KERN_INFO "cco_pcm_trigger(0x%px, %d)\n", substream, cmd);
 
     int err;
     struct cco_pcm_impl *impl = substream->runtime->private_data;
@@ -471,7 +471,7 @@ exit_error:
 
 static snd_pcm_uframes_t cco_pcm_pointer(struct snd_pcm_substream *substream)
 {
-    printk(KERN_INFO "cco_pcm_pointer(0x%px)\n", substream);
+    //printk(KERN_INFO "cco_pcm_pointer(0x%px)\n", substream);
 
     snd_pcm_uframes_t pos;
     struct cco_pcm_impl *impl = substream->runtime->private_data;
@@ -488,8 +488,8 @@ static int cco_pcm_silence(struct snd_pcm_substream *substream,
                            int channel, unsigned long pos,
                            unsigned long bytes)
 {
-    printk(KERN_INFO "cco_pcm_silence(0x%px, %d, %lu, %lu)\n",
-           substream, channel, pos, bytes);
+    //printk(KERN_INFO "cco_pcm_silence(0x%px, %d, %lu, %lu)\n",
+    //       substream, channel, pos, bytes);
 
     return 0; /* do nothing */
 }
@@ -498,8 +498,8 @@ static int cco_pcm_copy(struct snd_pcm_substream *substream,
                         int channel, unsigned long pos,
                         struct iov_iter *iter, unsigned long bytes)
 {
-    printk(KERN_INFO "cco_pcm_copy(0x%px, %d, %lu, 0x%px, %lu)\n",
-           substream, channel, pos, iter, bytes);
+    //printk(KERN_INFO "cco_pcm_copy(0x%px, %d, %lu, 0x%px, %lu)\n",
+    //       substream, channel, pos, iter, bytes);
 
     int err;
 
