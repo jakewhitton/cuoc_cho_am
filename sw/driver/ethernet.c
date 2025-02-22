@@ -278,6 +278,8 @@ SessionCtlFifo_t session_ctl_fifo;
 static int packet_recv(struct sk_buff *skb, struct net_device *dev,
                        struct packet_type *pt, struct net_device *orig_dev)
 {
+    int err;
+
     if (!is_valid_cco_packet(skb)) {
         kfree_skb(skb);
         return 0;
@@ -294,15 +296,40 @@ static int packet_recv(struct sk_buff *skb, struct net_device *dev,
 
     switch (msg->msg_type) {
     case SESSION_CTL:
-        if (!kfifo_put(&session_ctl_fifo, skb))
-            kfree_skb(skb);
+        if (!kfifo_put(&session_ctl_fifo, skb)) {
+            printk(KERN_ERR "cco: failed to put session ctl msg onto kfifo\n");
+            err = -ENOMEM;
+            goto exit_error;
+        }
+
+        break;
+
+    case PCM_DATA:
+        if (!session || !session->dev) {
+            printk(KERN_ERR "cco: recv'd PCM data msg without session/device\n");
+            err = -ENODEV;
+            goto exit_error;
+        }
+
+        err = cco_pcm_put_period(&session->dev->capture, skb);
+        if (err < 0) {
+            printk(KERN_ERR "cco: failed to place period into capture\n");
+            goto exit_error;
+        }
+
         break;
 
     default:
         printk(KERN_ERR "cco: recv'd message with unsupported msgtype\n");
-        kfree_skb(skb);
+        err = -EINVAL;
+        goto exit_error;
     }
 
     return 0;
+
+exit_error:
+    kfree_skb(skb);
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
 }
 /*============================================================================*/
