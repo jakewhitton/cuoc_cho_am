@@ -206,22 +206,53 @@ exit_error:
     return err;
 }
 
-static int cco_pcm_advance_cursor(struct cco_pcm *pcm, int channel)
+static int cco_pcm_advance_cursor(struct cco_pcm *pcm, int channel, bool allocate)
 {
     int err;
 
     struct list_head **cursor = &pcm->cursors[channel];
     if (list_is_last(*cursor, &pcm->periods)) {
-        // Next period doesn't yet exist, attempt to allocate it
-        struct cco_pcm_period *period;
-        err = cco_pcm_alloc_period(pcm, NULL, &period);
-        if (err < 0)
-            goto exit_error;
+        // Next period doesn't yet exist, attempt to allocate it or fail
+        if (allocate) {
+            struct cco_pcm_period *period;
+            err = cco_pcm_alloc_period(pcm, NULL, &period);
+            if (err < 0)
+                goto exit_error;
 
-        list_add_tail(&period->list, &pcm->periods);
+            list_add_tail(&period->list, &pcm->periods);
+        } else {
+            printk(KERN_INFO "ENODATA: channel=%d, periods=%d\n",
+                   channel, pcm->p);
+            return -ENODATA;
+        }
     }
 
     *cursor = (*cursor)->next;
+
+    if (!allocate) {
+
+        struct list_head *pos = (*cursor)->prev;
+        struct cco_pcm_period *period;
+        period = list_entry(pos, struct cco_pcm_period, list);
+
+        // Deduce whether we've used up all PCM data in prior period
+        bool completed_prev_period = true;
+        for (int i = 0; i < CHANNELS_PER_PACKET; ++i) {
+            if (period->sizes[i] != sizeof(ChannelPcmData_t)) {
+                completed_prev_period = false;
+                break;
+            }
+        }
+
+        // If previous period has been exhausted, free it and decrement bytes
+        if (completed_prev_period) {
+            pcm->p--;
+            list_del(pos);
+            kfree(period);
+            printk(KERN_INFO "kfree: period=0x%px, channel=%d, periods=%d\n",
+                   period, channel, pcm->p);
+        }
+    }
 
     return 0;
 
@@ -230,10 +261,29 @@ exit_error:
     return err;
 }
 
-static int cco_pcm_put_period(struct cco_pcm *pcm, struct sk_buff *skb)
+int cco_pcm_put_period(struct cco_pcm *pcm, struct sk_buff *skb)
 {
-    // TODO
+    int err;
+
+    struct cco_pcm_period *period;
+    err = cco_pcm_alloc_period(pcm, skb, &period);
+    if (err < 0)
+        goto exit_error;
+
+    list_add_tail(&period->list, &pcm->periods);
+
+    pcm->p++;
+
+    if (pcm->substream) {
+        printk(KERN_INFO "cco: snd_pcm_period_elapsed(0x%px)\n", pcm->substream);
+        snd_pcm_period_elapsed(pcm->substream);
+    }
+
     return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
 }
 
 static int cco_pcm_get_period(struct cco_pcm *pcm, struct sk_buff **result)
@@ -267,7 +317,7 @@ static int cco_pcm_put_samples(struct cco_pcm *pcm, int channel,
     if (list_is_head(*cursor, &pcm->periods) ||
         period->sizes[channel] >= sizeof(ChannelPcmData_t))
     {
-        err = cco_pcm_advance_cursor(pcm, channel);
+        err = cco_pcm_advance_cursor(pcm, channel, true);
         if (err < 0)
             goto exit_error;
     }
@@ -301,7 +351,7 @@ static int cco_pcm_put_samples(struct cco_pcm *pcm, int channel,
 
         // Advance cursor if we've exhausted the space in this skb for a given channel
         if (period->sizes[channel] >= sizeof(ChannelPcmData_t)) {
-            err = cco_pcm_advance_cursor(pcm, channel);
+            err = cco_pcm_advance_cursor(pcm, channel, true);
             if (err < 0)
                 goto exit_error;
         }
@@ -317,8 +367,55 @@ exit_error:
 static int cco_pcm_get_samples(struct cco_pcm *pcm, int channel,
                                struct iov_iter *iter, unsigned long bytes)
 {
-    // TODO
+    int err;
+
+    // Wait until we have enough data to complete the transfer
+    //while (pcm->bytes < bytes)
+    //{ }
+
+    struct list_head **cursor = &pcm->cursors[channel];
+    struct cco_pcm_period *period = list_entry(*cursor, struct cco_pcm_period, list);
+
+    if (list_is_head(*cursor, &pcm->periods) ||
+        period->sizes[channel] >= sizeof(ChannelPcmData_t))
+    {
+        err = cco_pcm_advance_cursor(pcm, channel, false);
+        if (err < 0)
+            goto exit_error;
+    }
+
+    while (bytes > 0) {
+        period = list_entry(*cursor, struct cco_pcm_period, list);
+        unsigned *size = &period->sizes[channel];
+
+        Msg_t *msg = get_cco_msg(period->skb);
+        PcmDataMsg_t *pcm_data_msg = (PcmDataMsg_t *)msg->payload;
+        char *channel_data = pcm_data_msg->channels[channel].data;
+        char *start = channel_data + *size;
+
+        // Copy sample data from appropriate place in skb
+        size_t remaining = min(bytes, sizeof(ChannelPcmData_t) - *size);
+        size_t copied = 0;
+        while (remaining > 0) {
+            copied += copy_to_iter(start + copied, remaining, iter);
+            remaining -= copied;
+        }
+        *size += copied;
+        bytes -= copied;
+
+        // Advance cursor if we've exhausted the data in this skb for a given channel
+        if (period->sizes[channel] >= sizeof(ChannelPcmData_t)) {
+            err = cco_pcm_advance_cursor(pcm, channel, false);
+            if (err < 0)
+                goto exit_error;
+        }
+    }
+
     return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
 }
 /*============================================================================*/
 
@@ -377,12 +474,26 @@ static int cco_pcm_open(struct snd_pcm_substream *substream)
 
     int err;
 
+    // Deduce which PCM instance this substream corresponds to
+    struct cco_device *dev = snd_pcm_substream_chip(substream);
+    struct cco_pcm *pcm;
+    if (substream->pcm == dev->playback.pcm) {
+        pcm = &dev->playback;
+    } else if (substream->pcm == dev->capture.pcm) {
+        pcm = &dev->capture;
+    } else {
+        err = -ENODEV;
+        goto exit_error;
+    }
+
+    pcm->substream = substream;
+
     // Allocate and initialize state for handling newly created substream
     struct cco_pcm_impl *impl;
     impl = kzalloc(sizeof(*impl), GFP_KERNEL);
     if (!impl) {
         err = -ENOMEM;
-        goto exit_error;
+        goto undo_substream;
     }
     impl->substream = substream;
     spin_lock_init(&impl->lock);
@@ -400,6 +511,8 @@ static int cco_pcm_open(struct snd_pcm_substream *substream)
 
     return 0;
 
+undo_substream:
+    pcm->substream = NULL;
 exit_error:
     CCO_LOG_FUNCTION_FAILURE(err);
     return err;
@@ -424,6 +537,7 @@ static int cco_pcm_close(struct snd_pcm_substream *substream)
     }
 
     cco_pcm_reset(pcm);
+    pcm->substream = NULL;
 
     kfree(substream->runtime->private_data);
 
@@ -547,8 +661,8 @@ static int cco_pcm_copy(struct snd_pcm_substream *substream,
                         int channel, unsigned long pos,
                         struct iov_iter *iter, unsigned long bytes)
 {
-    //printk(KERN_INFO "cco_pcm_copy(0x%px, %d, %lu, 0x%px, %lu)\n",
-    //       substream, channel, pos, iter, bytes);
+    printk(KERN_INFO "cco_pcm_copy(0x%px, %d, %lu, 0x%px, %lu)\n",
+           substream, channel, pos, iter, bytes);
 
     int err;
 
@@ -597,8 +711,8 @@ static void cco_pcm_timer_callback(struct timer_list *t)
     impl->elapsed = 0;
     spin_unlock_irqrestore(&impl->lock, flags);
 
-    if (elapsed)
-        snd_pcm_period_elapsed(impl->substream);
+    //if (elapsed)
+    //    snd_pcm_period_elapsed(impl->substream);
 }
 
 static void cco_pcm_timer_rearm(struct cco_pcm_impl *impl)

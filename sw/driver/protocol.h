@@ -81,6 +81,11 @@ typedef struct
 // 24-bit sample format from ALSA.
 #define SAMPLE_SIZE 4
 
+
+#define BYTES_PER_PACKET (CHANNELS_PER_PACKET * \
+                          SAMPLES_PER_CHANNEL * \
+                          SAMPLE_SIZE)
+
 typedef struct
 {
     char data[SAMPLES_PER_CHANNEL * SAMPLE_SIZE];
