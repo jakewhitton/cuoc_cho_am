@@ -88,7 +88,7 @@ package ethernet is
     ) return natural;
 
     -- Record of ethernet PHY pins
-    type PhyPins_t is record
+    type EthernetPhyPins_t is record
         clkin  : std_logic;
         -- RX interface
         rxd    : Dibit_t;
@@ -101,7 +101,7 @@ package ethernet is
     -- View of ethernet PHY pins
     --
     -- Note: can be used as port in entity, preserves direction of each pin
-    view Phy_t of PhyPins_t is
+    view EthernetPhy_t of EthernetPhyPins_t is
         clkin       : out;
         -- RX interface
         rxd, crs_dv : in;
@@ -113,7 +113,7 @@ package ethernet is
     component ethernet_trx is
         port (
             i_clk           : in   std_logic;
-            phy             : view Phy_t;
+            phy             : view EthernetPhy_t;
             playback_writer : view PeriodFifo_Writer_t;
             capture_reader  : view PeriodFifo_Reader_t;
             o_streams       : out  Streams_t;
@@ -125,7 +125,7 @@ package ethernet is
     component ethernet_rx is
         port (
             i_ref_clk : in   std_logic;
-            phy       : view Phy_t;
+            phy       : view EthernetPhy_t;
             o_frame   : out  Frame_t;
             o_valid   : out  std_logic;
         );
@@ -135,7 +135,7 @@ package ethernet is
     component ethernet_tx is
         port (
             i_ref_clk : in   std_logic;
-            phy       : view Phy_t;
+            phy       : view EthernetPhy_t;
             i_frame   : in   Frame_t;
             i_valid   : in   std_logic;
         );

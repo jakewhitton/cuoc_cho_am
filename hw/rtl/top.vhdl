@@ -3,10 +3,10 @@ library ieee;
     use ieee.numeric_std.all;
 
 library sw_transport;
-    use sw_transport.all;
+    use sw_transport.ethernet.all;
 
 library external_transport;
-    use external_transport.all;
+    use external_transport.spdif.all;
 
 library util;
     use util.audio.all;
@@ -14,9 +14,8 @@ library util;
 entity top is
     port (
         i_clk        : in   std_logic;
-        i_spdif      : in   std_logic;
-        o_spdif      : out  std_logic;
-        ethernet_phy : view sw_transport.ethernet.Phy_t;
+        ethernet_phy : view EthernetPhy_t;
+        spdif_phy    : view SpdifPhy_t;
         o_leds       : out  std_logic_vector(15 downto 0)
     );
 end top;
@@ -46,32 +45,37 @@ begin
             o_leds          => o_leds
         );
 
-    -- S/PDIF transport
-    --spdif_trx : external_transport.spdif.spdif_trx
-    --    port map (
-    --        i_clk   => i_clk,
-    --        i_spdif => i_spdif,
-    --        o_spdif => o_spdif
-    --    );
-
+    -- Playback sample transport
     playback_period_fifo : util.audio.period_fifo
         port map (
             writer => playback_writer,
             reader => playback_reader
         );
 
+    -- Capture sample transport
     capture_period_fifo : util.audio.period_fifo
         port map (
             writer => capture_writer,
             reader => capture_reader
         );
 
-    loopback : util.audio.period_loopback
+    -- S/PDIF transport
+    spdif_trx : external_transport.spdif.spdif_trx
         port map (
-            i_clk     => i_clk,
-            i_streams => streams,
-            reader    => playback_reader,
-            writer    => capture_writer
+            i_clk           => i_clk,
+            i_streams       => streams,
+            playback_reader => playback_reader,
+            capture_writer  => capture_writer,
+            phy             => spdif_phy
         );
+
+    -- Loopback playback -> capture
+    --loopback : util.audio.period_loopback
+    --    port map (
+    --        i_clk     => i_clk,
+    --        i_streams => streams,
+    --        reader    => playback_reader,
+    --        writer    => capture_writer
+    --    );
 
 end structure;

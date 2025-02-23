@@ -13,7 +13,7 @@ library ieee;
 entity ethernet_trx is
     port (
         i_clk           : in   std_logic;
-        phy             : view Phy_t;
+        phy             : view EthernetPhy_t;
         playback_writer : view PeriodFifo_Writer_t;
         capture_reader  : view PeriodFifo_Reader_t;
         o_streams       : out  Streams_t;

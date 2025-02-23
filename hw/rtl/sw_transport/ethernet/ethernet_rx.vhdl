@@ -11,7 +11,7 @@ library ieee;
 entity ethernet_rx is
     port (
         i_ref_clk : in   std_logic;
-        phy       : view Phy_t;
+        phy       : view EthernetPhy_t;
         o_frame   : out  Frame_t;
         o_valid   : out  std_logic;
     );

@@ -12,7 +12,7 @@ library ieee;
 entity ethernet_tx is
     port (
         i_ref_clk : in   std_logic;
-        phy       : view Phy_t;
+        phy       : view EthernetPhy_t;
         i_frame   : in   Frame_t;
         i_valid   : in   std_logic;
     );
