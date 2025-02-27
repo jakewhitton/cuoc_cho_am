@@ -26,8 +26,9 @@ architecture behavioral of spdif_tx is
     signal timeslot : std_logic := '0';
 
     -- Sample selection state
-    constant samples_to_hold_value : natural := 109;
-    signal   sine_wave_counter     : natural := 0;
+    constant samples_to_hold_value : natural  := 109;
+    signal   sine_wave_counter     : natural  := 0;
+    signal   sample                : Sample_t := Sample_t_INIT;
 
     -- Transmit state
     type TransmitState_t is (
@@ -88,11 +89,9 @@ begin
         if rising_edge(i_clk) then
             if bit_pos = 31 then
                 if sine_wave_counter < samples_to_hold_value then
-                    tx_subframe.aux <= Subframe_t_SQUARE_WAVE_LOW.aux;
-                    tx_subframe.data <= Subframe_t_SQUARE_WAVE_LOW.data;
+                    sample <= "111000000000000000000000";
                 else
-                    tx_subframe.aux <= Subframe_t_SQUARE_WAVE_HIGH.aux;
-                    tx_subframe.data <= Subframe_t_SQUARE_WAVE_HIGH.data;
+                    sample <= "000111111111111111111111";
                 end if;
 
                 if sine_wave_counter < 2*samples_to_hold_value then
@@ -103,6 +102,12 @@ begin
             end if;
         end if;
     end process;
+    assign_aux : for i in 0 to 3 generate
+        tx_subframe.aux(i) <= sample(23 - i);
+    end generate assign_aux;
+    assign_data : for i in 0 to 19 generate
+        tx_subframe.data(i) <= sample(19 - i);
+    end generate assign_data;
 
     -- Note: states in the state machine have the responsibility of negating the
     -- line in the moment of the outgoing transition to another state.
