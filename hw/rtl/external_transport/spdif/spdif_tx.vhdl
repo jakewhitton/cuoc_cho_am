@@ -26,9 +26,15 @@ architecture behavioral of spdif_tx is
     signal timeslot : std_logic := '0';
 
     -- Sample selection state
-    constant samples_to_hold_value : natural  := 109;
-    signal   sine_wave_counter     : natural  := 0;
-    signal   sample                : Sample_t := Sample_t_INIT;
+    signal period_in  : Period_t := Period_t_INIT;
+    signal period     : Period_t := Period_t_INIT;
+    signal pos        : natural  := 0;
+    signal period_end : natural  := 0;
+    signal sample     : Sample_t := Sample_t_INIT;
+
+    -- Mocked period
+    constant multiplier  : natural  := 2097151 / PERIOD_SIZE;
+    signal   mock_period : Period_t := Period_t_INIT;
 
     -- Transmit state
     type TransmitState_t is (
@@ -87,27 +93,45 @@ begin
     sample_selection_proc : process(i_clk)
     begin
         if rising_edge(i_clk) then
-            if bit_pos = 31 then
-                if sine_wave_counter < samples_to_hold_value then
-                    sample <= "111000000000000000000000";
-                else
-                    sample <= "000111111111111111111111";
-                end if;
 
-                if sine_wave_counter < 2*samples_to_hold_value then
-                    sine_wave_counter <= sine_wave_counter + 1;
-                else
-                    sine_wave_counter <= 0;
+            -- Will be overwritten later if needed
+            reader.enable <= '0';
+
+            -- Upon finishing transmitting subframe, select next sample
+            if subframe = '1' and bit_pos = 31 then
+
+                pos <= (pos + 1) mod PERIOD_SIZE;
+
+                -- Load next period when needed
+                if frame = period_end then
+                    if i_active = '1' and reader.empty = '0' then
+                        period <= period_in;
+                        reader.enable <= '1';
+                    else
+                        period <= Period_t_INIT;
+                    end if;
+
+                    --period <= mock_period;
+
+                    period_end <= (pos + PERIOD_SIZE) mod 192;
                 end if;
             end if;
         end if;
     end process;
+    reader.clk <= i_clk;
+    period_in <= reader.data;
+    sample <= period(to_integer(unsigned'("" & subframe)))(pos);
     assign_aux : for i in 0 to 3 generate
         tx_subframe.aux(i) <= sample(23 - i);
     end generate assign_aux;
     assign_data : for i in 0 to 19 generate
         tx_subframe.data(i) <= sample(19 - i);
     end generate assign_data;
+
+    --generate_mock_period : for i in 0 to PERIOD_SIZE - 1 generate
+    --    mock_period(0)(i) <= std_logic_vector(to_unsigned(i * multiplier, 24));
+    --    mock_period(1)(i) <= std_logic_vector(to_unsigned(i * multiplier, 24));
+    --end generate generate_mock_period;
 
     -- Note: states in the state machine have the responsibility of negating the
     -- line in the moment of the outgoing transition to another state.

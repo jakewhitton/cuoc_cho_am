@@ -31,7 +31,26 @@ architecture behavioral of spdif_trx is
     end component;
     signal spdif_tx_clk : std_logic := '0';
 
+    -- Intermediate signals
+    signal phy_rx : std_logic := '0';
+    signal phy_tx : std_logic := '0';
+    signal reader : PeriodFifo_ReaderPins_t;
+    signal writer : PeriodFifo_WriterPins_t;
+
 begin
+
+    phy_rx <= phy.rx;
+    phy.tx <= phy_tx;
+
+    playback_reader.clk    <= reader.clk;
+    reader.empty           <= playback_reader.empty;
+    playback_reader.enable <= reader.enable;
+    reader.data            <= playback_reader.data;
+
+    capture_writer.clk    <= writer.clk;
+    writer.full           <= capture_writer.full;
+    capture_writer.enable <= reader.enable;
+    capture_writer.data   <= writer.data;
 
     -- Generate SPDIF tx clk
     generate_spdif_tx_clk : ip_clk_wizard_spdif
@@ -45,18 +64,21 @@ begin
         port map (
             i_clk    => spdif_tx_clk,
             i_active => i_streams.playback.active,
-            reader   => playback_reader,
-            o_spdif  => phy.tx
+            reader   => reader,
+            o_spdif  => phy_tx
         );
 
     -- S/PDIF receiver
     --spdif_rx : work.spdif.spdif_rx
     --    port map (
     --        i_clk    => i_clk,
-    --        i_spdif  => phy.rx,
+    --        i_spdif  => phy_rx,
     --        i_active => i_streams.capture.active,
-    --        writer   => capture_writer,
+    --        writer   => writer,
     --        o_sclk   => sclk
     --    );
+    writer.clk <= i_clk;
+    writer.enable <= '0';
+    writer.data <= Period_t_INIT;
 
 end behavioral;

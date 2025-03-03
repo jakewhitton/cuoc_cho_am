@@ -53,11 +53,11 @@ begin
         );
 
     -- Capture sample transport
-    capture_period_fifo : util.audio.period_fifo
-        port map (
-            writer => capture_writer,
-            reader => capture_reader
-        );
+    --capture_period_fifo : util.audio.period_fifo
+    --    port map (
+    --        writer => capture_writer,
+    --        reader => capture_reader
+    --    );
 
     -- S/PDIF transport
     spdif_trx : external_transport.spdif.spdif_trx
