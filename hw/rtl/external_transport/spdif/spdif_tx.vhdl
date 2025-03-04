@@ -104,7 +104,7 @@ begin
 
                 -- Load next period when needed
                 if frame = period_end then
-                    if i_active = '1' and reader.empty = '0' then
+                    if reader.empty = '0' then
                         period <= period_in;
                         reader.enable <= '1';
                     else

@@ -57,6 +57,8 @@ begin
     --        writer => capture_writer,
     --        reader => capture_reader
     --    );
+    capture_reader.empty <= '1';
+    capture_reader.data <= Period_t_INIT;
 
     -- S/PDIF transport
     spdif_trx : external_transport.spdif.spdif_trx
