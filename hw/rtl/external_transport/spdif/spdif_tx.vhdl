@@ -113,7 +113,7 @@ begin
 
                     --period <= mock_period;
 
-                    period_end <= (pos + PERIOD_SIZE) mod 192;
+                    period_end <= (frame + PERIOD_SIZE) mod 192;
                 end if;
             end if;
         end if;
