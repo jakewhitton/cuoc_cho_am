@@ -17,7 +17,6 @@ entity ethernet_trx is
         playback_writer : view PeriodFifo_Writer_t;
         capture_reader  : view PeriodFifo_Reader_t;
         o_streams       : out  Streams_t;
-        o_leds          : out  std_logic_vector(15 downto 0);
     );
 end ethernet_trx;
 
@@ -56,14 +55,22 @@ architecture behavioral of ethernet_trx is
     signal ref_clk : std_logic := '0';
 
     -- Intermediate signals for ethernet_rx
+    signal phy_rx   : EthernetRxPhy_t;
     signal rx_frame : Frame_t   := Frame_t_INIT;
     signal rx_valid : std_logic := '0';
 
     -- Intermediate signals for ethernet_tx
+    signal phy_tx   : EthernetTxPhy_t;
     signal tx_frame : Frame_t   := Frame_t_INIT;
     signal tx_valid : std_logic := '0';
 
 begin
+
+    -- Unwrap view of phy
+    phy_rx.data   <= phy.rx.data;
+    phy_rx.crs_dv <= phy.rx.crs_dv;
+    phy.tx.data   <= phy_tx.data;
+    phy.tx.enable <= phy_tx.enable;
 
     session_sm : process(ref_clk)
         variable pcm_ctl_msg  : PcmCtlMsg_t;
@@ -254,7 +261,7 @@ begin
     ethernet_rx : work.ethernet.ethernet_rx
         port map (
             i_ref_clk => ref_clk,
-            phy       => phy,
+            phy       => phy_rx,
             o_frame   => rx_frame,
             o_valid   => rx_valid
         );
@@ -262,7 +269,7 @@ begin
     ethernet_tx : work.ethernet.ethernet_tx
         port map (
             i_ref_clk => ref_clk,
-            phy       => phy,
+            phy       => phy_tx,
             i_frame   => tx_frame,
             i_valid   => tx_valid
         );

@@ -41,8 +41,7 @@ begin
             phy             => ethernet_phy,
             playback_writer => playback_writer,
             capture_reader  => capture_reader,
-            o_streams       => streams,
-            o_leds          => o_leds
+            o_streams       => streams
         );
 
     -- Playback sample transport
@@ -77,5 +76,7 @@ begin
     --        reader    => playback_reader,
     --        writer    => capture_writer
     --    );
+
+    o_leds(15 downto 0) <= (others => '0');
 
 end structure;

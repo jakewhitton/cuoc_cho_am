@@ -87,26 +87,32 @@ package ethernet is
         section : FrameSection_t;
     ) return natural;
 
+    -- Record for RX interface
+    type EthernetRxPhy_t is record
+        data   : Dibit_t;
+        crs_dv : std_logic;
+    end record;
+
+    -- Record for TX interface
+    type EthernetTxPhy_t is record
+        data   : Dibit_t;
+        enable : std_logic;
+    end record;
+
     -- Record of ethernet PHY pins
     type EthernetPhyPins_t is record
         clkin  : std_logic;
-        -- RX interface
-        rxd    : Dibit_t;
-        crs_dv : std_logic;
-        -- TX interface
-        txd    : Dibit_t;
-        tx_en  : std_logic;
+        rx     : EthernetRxPhy_t;
+        tx     : EthernetTxPhy_t;
     end record;
 
     -- View of ethernet PHY pins
     --
     -- Note: can be used as port in entity, preserves direction of each pin
     view EthernetPhy_t of EthernetPhyPins_t is
-        clkin       : out;
-        -- RX interface
-        rxd, crs_dv : in;
-        -- TX interface
-        txd, tx_en  : out;
+        clkin : out;
+        rx    : in;
+        tx    : out;
     end view;
 
     -- Ethernet sending/receiving
@@ -117,27 +123,26 @@ package ethernet is
             playback_writer : view PeriodFifo_Writer_t;
             capture_reader  : view PeriodFifo_Reader_t;
             o_streams       : out  Streams_t;
-            o_leds          : out  std_logic_vector(15 downto 0);
         );
     end component;
 
     -- Ethernet receiving
     component ethernet_rx is
         port (
-            i_ref_clk : in   std_logic;
-            phy       : view EthernetPhy_t;
-            o_frame   : out  Frame_t;
-            o_valid   : out  std_logic;
+            i_ref_clk : in  std_logic;
+            phy       : in  EthernetRxPhy_t;
+            o_frame   : out Frame_t;
+            o_valid   : out std_logic;
         );
     end component;
 
     -- Ethernet sending
     component ethernet_tx is
         port (
-            i_ref_clk : in   std_logic;
-            phy       : view EthernetPhy_t;
-            i_frame   : in   Frame_t;
-            i_valid   : in   std_logic;
+            i_ref_clk : in  std_logic;
+            phy       : out EthernetTxPhy_t;
+            i_frame   : in  Frame_t;
+            i_valid   : in  std_logic;
         );
     end component;
 
