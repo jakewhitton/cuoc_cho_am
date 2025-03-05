@@ -98,7 +98,7 @@ begin
             reader.enable <= '0';
 
             -- Upon finishing transmitting subframe, select next sample
-            if subframe = '1' and bit_pos = 31 then
+            if subframe = '1' and bit_pos = 31 and timeslot = '1' then
 
                 pos <= (pos + 1) mod PERIOD_SIZE;
 
@@ -113,6 +113,7 @@ begin
 
                     --period <= mock_period;
 
+                    pos <= 0;
                     period_end <= (frame + PERIOD_SIZE) mod 192;
                 end if;
             end if;
