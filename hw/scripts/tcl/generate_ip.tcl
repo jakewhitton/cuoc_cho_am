@@ -70,7 +70,7 @@ proc get_ip_config {ip} {
             dict set config "props" [dict create                          \
                 CONFIG.Fifo_Implementation {Independent_Clocks_Block_RAM} \
                 CONFIG.Input_Data_Width    {768}                          \
-                CONFIG.Input_Depth         {32}                           \
+                CONFIG.Input_Depth         {512}                          \
                 CONFIG.Performance_Options {First_Word_Fall_Through}      \
             ]
         }
