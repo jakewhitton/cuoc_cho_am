@@ -644,11 +644,15 @@ static int pcm_manager(void * data)
     while (!kthread_should_stop()) {
 
         struct sk_buff *skb;
-        err = cco_pcm_get_period(&dev->playback, &skb);
-        if (err == 0) {
-            packet_send(session, skb);
-        } else if (err < 0 && err != -ENODATA) {
-            goto exit_error;
+        while (true) {
+            err = cco_pcm_get_period(&dev->playback, &skb);
+            if (err == 0) {
+                packet_send(session, skb);
+            } else if (err < 0 && err != -ENODATA) {
+                goto exit_error;
+            } else {
+                break;
+            }
         }
 
         msleep(1);
