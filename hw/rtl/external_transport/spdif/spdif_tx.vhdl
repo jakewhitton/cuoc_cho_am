@@ -19,6 +19,9 @@ end spdif_tx;
 
 architecture behavioral of spdif_tx is
 
+    -- Clock conversion
+    signal tx_clk : std_logic := '0';
+
     -- Timing state
     signal frame    : natural   := 0;
     signal subframe : std_logic := '0';
@@ -57,10 +60,18 @@ architecture behavioral of spdif_tx is
 
 begin
 
-    -- Timing handling
-    maintain_timing_state_proc : process(i_clk)
+    -- Convert 12.288MHz clk -> 6.144MHz clk
+    generate_tx_clk : process(i_clk)
     begin
         if rising_edge(i_clk) then
+            tx_clk <= not tx_clk;
+        end if;
+    end process;
+
+    -- Timing handling
+    maintain_timing_state_proc : process(tx_clk)
+    begin
+        if rising_edge(tx_clk) then
             -- Increment frame
             if subframe = '1' and bit_pos = LAST_STATUS_BIT and timeslot = '1' then
                 if frame < 191 then
@@ -90,9 +101,9 @@ begin
     end process;
 
     -- Shuttle data between period FIFO & tx_subframe
-    sample_selection_proc : process(i_clk)
+    sample_selection_proc : process(tx_clk)
     begin
-        if rising_edge(i_clk) then
+        if rising_edge(tx_clk) then
 
             -- Will be overwritten later if needed
             reader.enable <= '0';
@@ -119,7 +130,7 @@ begin
             end if;
         end if;
     end process;
-    reader.clk <= i_clk;
+    reader.clk <= tx_clk;
     period_in <= reader.data;
     sample <= period(to_integer(unsigned'("" & subframe)))(pos);
     assign_aux : for i in 0 to 3 generate
@@ -136,9 +147,9 @@ begin
 
     -- Note: states in the state machine have the responsibility of negating the
     -- line in the moment of the outgoing transition to another state.
-    transmit_sm_proc : process(i_clk)
+    transmit_sm_proc : process(tx_clk)
     begin
-        if rising_edge(i_clk) then
+        if rising_edge(tx_clk) then
             case tx_state is
                 when INIT =>
                     -- Wait until beginning of a new block, perform first
