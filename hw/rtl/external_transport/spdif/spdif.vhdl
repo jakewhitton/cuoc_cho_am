@@ -203,4 +203,12 @@ package spdif is
         );
     end component;
 
+    component spdif_status_bit_dumper is
+        port (
+            i_clk        : in   std_logic;
+            i_spdif      : in   std_logic;
+            ethernet_phy : view EthernetPhy_t;
+        );
+    end component;
+
 end package spdif;
