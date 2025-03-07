@@ -36,9 +36,10 @@ architecture behavioral of spdif_status_bit_dumper is
     signal last_lrck   : std_logic := '0';
     
     subtype StatusBits_t is std_logic_vector(0 to 191);
-    signal valid_bits   : StatusBits_t := (others => '0');
-    signal user_bits    : StatusBits_t := (others => '0');
-    signal channel_bits : StatusBits_t := (others => '0');
+    --signal valid_bits   : StatusBits_t := (others => '0');
+    --signal user_bits    : StatusBits_t := (others => '0');
+    signal channel_bits_l : StatusBits_t := (others => '0');
+    signal channel_bits_r : StatusBits_t := (others => '0');
 
     -- Frame tracking state
 
@@ -63,12 +64,12 @@ begin
 
     tx_frame.dest_mac <= MAC_ADDRESS_BROADCAST;
     tx_frame.src_mac  <= MAC_ADDRESS_CCO;
-    tx_frame.length   <= Length_t(to_unsigned(148, 16));
-    tx_frame.payload(0 to 191)   <= valid_bits;
-    tx_frame.payload(192 to 383) <= user_bits;
-    tx_frame.payload(384 to 575) <= channel_bits;
+    tx_frame.length   <= Length_t(to_unsigned(52, 16));
+    tx_frame.payload(0 to 191)   <= channel_bits_l;
+    tx_frame.payload(192 to 383) <= channel_bits_r;
+    --tx_frame.payload(384 to 575) <= channel_bits;
     tx_frame.payload(
-        (144 * BITS_PER_BYTE) to (148 * BITS_PER_BYTE) - 1
+        (48 * BITS_PER_BYTE) to (52 * BITS_PER_BYTE) - 1
     ) <= X"DEADBEEF";
 
     -- S/PDIF => serial bridge
@@ -119,11 +120,15 @@ begin
                 when STATUS =>
                     -- Capture the bits we care about
                     if counter = 0 then
-                        valid_bits(frame) <= sdata;
+                        --valid_bits(frame) <= sdata;
                     elsif counter = 1 then
-                        user_bits(frame) <= sdata;
+                        --user_bits(frame) <= sdata;
                     elsif counter = 2 then
-                        channel_bits(frame) <= sdata;
+                        if lrck = '1' then
+                            channel_bits_l(frame) <= sdata;
+                        else
+                            channel_bits_r(frame) <= sdata;
+                        end if;
                     elsif counter = 3 then
                         -- Ignore parity bit
                     end if;
