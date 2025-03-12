@@ -288,8 +288,12 @@ begin
     -- Note: see https://en.wikipedia.org/wiki/S/PDIF#Protocol_specifications
     -- for more description of the meaning of these fields
     --
-    channel_bits(2)        <= '1';    -- Copy permit
-    channel_bits(24 to 27) <= "0100"; -- Sampling frequency = 48khz
-    channel_bits(32 to 35) <= "1101"; -- Word length = 24 bit, full word
+    channel_bits(2)        <= '1';       -- Copy permit
+    channel_bits(8 to 14)  <= "0101111"; -- Audio source category
+    channel_bits(20 to 23) <= "1000"
+                              when subframe = '0' else
+                              "0100";    -- Channel number
+    channel_bits(24 to 27) <= "0100";    -- Sampling frequency = 48khz
+    channel_bits(32 to 35) <= "1101";    -- Word length = 24 bit, full word
 
 end behavioral;
