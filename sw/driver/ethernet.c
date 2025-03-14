@@ -348,6 +348,8 @@ SessionCtlFifo_t session_ctl_fifo;
 static int packet_recv(struct sk_buff *skb, struct net_device *dev,
                        struct packet_type *pt, struct net_device *orig_dev)
 {
+	int err;
+	
     if (!is_valid_cco_packet(skb)) {
         kfree_skb(skb);
         return 0;
@@ -391,5 +393,9 @@ static int packet_recv(struct sk_buff *skb, struct net_device *dev,
     }
 
     return 0;
+
+exit_error:
+	CCO_LOG_FUNCTION_FAILURE(err);
+	return err;
 }
 /*============================================================================*/
