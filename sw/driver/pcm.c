@@ -658,6 +658,8 @@ static int pcm_manager(void * data)
                 break;
             }
         }
+
+		msleep(1);
     }
 
     return 0;
