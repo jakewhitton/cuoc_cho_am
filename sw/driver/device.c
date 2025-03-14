@@ -340,9 +340,8 @@ static int session_manager(void * data)
                 continue;
 
             ktime_t now = ktime_get();
-            if (now - session->ts_last_send > CCO_HEARTBEAT_INTERVAL) {
+            if (now - session->ts_last_send > CCO_HEARTBEAT_INTERVAL)
                 send_heartbeat(session);
-            }
         }
 
         msleep(100);
