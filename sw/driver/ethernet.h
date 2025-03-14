@@ -7,12 +7,16 @@
 
 #include "device.h"
 
+extern uint8_t current_generation_id;
+
 // Initialization
 int cco_ethernet_init(void);
 void cco_ethernet_exit(void);
 
 // Packet sending
+int send_announce(void);
 int send_handshake_request(struct cco_session *session);
+int send_handshake_response(struct cco_session *session);
 int send_heartbeat(struct cco_session *session);
 int send_close(struct cco_session *session);
 int send_pcm_ctl(struct cco_session *session);

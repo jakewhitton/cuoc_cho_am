@@ -239,6 +239,8 @@ static void cco_close_session(struct cco_session *session, const char *reason)
     }
     printk(KERN_CONT "\n");
 
+	++current_generation_id;
+
     kfree(session);
 }
 
@@ -273,11 +275,7 @@ static void handle_session_ctl_msg(struct sk_buff *skb)
 
     SessionCtlMsg_t *session_msg = (SessionCtlMsg_t *)msg->payload;
     switch (session_msg->msg_type) {
-    case SESSION_CTL_ANNOUNCE:
-        send_handshake_request(session);
-        break;
-
-    case SESSION_CTL_HANDSHAKE_RESPONSE:
+    case SESSION_CTL_HANDSHAKE_REQUEST:
         struct cco_device *dev = cco_register_device(session);
         if (!dev) {
             send_close(session);
@@ -287,16 +285,20 @@ static void handle_session_ctl_msg(struct sk_buff *skb)
         printk(KERN_ERR "cco: [%pM, %d]: device created w/ id=%d\n",
                hdr->h_source, msg->generation_id, session->id);
         session->dev = dev;
+        send_handshake_response(session);
         break;
 
     case SESSION_CTL_CLOSE:
-        cco_close_session(session, "FPGA closed session");
+        cco_close_session(session, "driver closed session");
         break;
     }
 }
 
 static int session_manager(void * data)
 {
+    static ktime_t ts_last_announce;
+	ts_last_announce = ktime_get();
+
     struct sk_buff *skb;
     while (!kthread_should_stop()) {
 
@@ -305,6 +307,20 @@ static int session_manager(void * data)
             handle_session_ctl_msg(skb);
             kfree_skb(skb);
         }
+
+		// Announce once per second if there are no active sessions
+		bool any_session = false;
+		for (int i = 0; i < SNDRV_CARDS; ++i) {
+			if (sessions[i]) {
+				any_session = true;
+				break;
+			}
+		}
+		ktime_t now = ktime_get();
+		if (!any_session && now - ts_last_announce > CCO_ANNOUNCE_INTERVAL) {
+			send_announce();
+			ts_last_announce = now;
+		}
 
         // Close any sessions that have exceeded heartbeat timout
         for (unsigned i = 0; i < ARRAY_SIZE(sessions); ++i) {
@@ -326,8 +342,6 @@ static int session_manager(void * data)
             ktime_t now = ktime_get();
             if (now - session->ts_last_send > CCO_HEARTBEAT_INTERVAL) {
                 send_heartbeat(session);
-                printk(KERN_INFO "# periods = %d\n",
-                       list_count_nodes(&session->dev->capture.periods));
             }
         }
 

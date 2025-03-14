@@ -68,7 +68,7 @@ add_custom_target(
             -drive file=${ROOTFS_IMAGE_PATH},if=virtio,format=raw
             -append "root=/dev/vda console=ttyS0"
             -netdev tap,id=mynet0,ifname=tap0,script=no,downscript=no
-            -device virtio-net-pci,netdev=mynet0,mac=52:55:00:d1:55:01
+            -device virtio-net-pci,netdev=mynet0,mac=52:55:00:d1:55:02
             -nographic
     DEPENDS ${ROOTFS_IMAGE_PATH}
 )

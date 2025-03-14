@@ -71,6 +71,50 @@ void cco_ethernet_exit(void)
 static int create_cco_packet(struct cco_session *session, uint8_t msg_type,
                              struct sk_buff **skb_out);
 
+static unsigned char MAC_BROADCAST[ETH_ALEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
+int send_announce(void)
+{
+    int err;
+
+    // Allocate sk_buff
+    unsigned len = sizeof(Msg_t) + sizeof(SessionCtlMsg_t);
+    struct sk_buff *skb = alloc_skb(ETH_HLEN + len, GFP_KERNEL);
+    if (IS_ERR(skb)) {
+        printk(KERN_ERR "cco: failed to allocate sk_buff\n");
+        err = -ENOMEM;
+        goto exit_error;
+    }
+    skb->dev = netdev;
+
+    // Create 802.3 ethernet header
+    skb_reserve(skb, ETH_HLEN);
+    dev_hard_header(skb, netdev, ETH_P_802_3, MAC_BROADCAST, netdev->dev_addr, len);
+
+    // Create cco header
+    Msg_t *msg = (Msg_t *)skb_put(skb, sizeof(Msg_t));
+    msg->magic = htonl(CCO_MAGIC);
+    msg->generation_id = 0;
+    msg->msg_type = SESSION_CTL;
+
+    SessionCtlMsg_t *session_ctl_msg;
+    session_ctl_msg = (SessionCtlMsg_t *)skb_put(skb, sizeof(SessionCtlMsg_t));
+    session_ctl_msg->msg_type = SESSION_CTL_ANNOUNCE;
+
+    if (dev_queue_xmit(skb) != NET_XMIT_SUCCESS) {
+        printk(KERN_ERR "cco: failed to enqueue packet\n");
+        err = -EAGAIN;
+        kfree_skb(skb);
+        goto exit_error;
+    }
+
+    return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
+
 int send_handshake_request(struct cco_session *session)
 {
     int err;
@@ -83,6 +127,30 @@ int send_handshake_request(struct cco_session *session)
     SessionCtlMsg_t *msg;
     msg = (SessionCtlMsg_t *)skb_put(skb, sizeof(SessionCtlMsg_t));
     msg->msg_type = SESSION_CTL_HANDSHAKE_REQUEST;
+
+    err = packet_send(session, skb);
+    if (err < 0)
+        goto exit_error;
+
+    return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
+
+int send_handshake_response(struct cco_session *session)
+{
+    int err;
+
+    struct sk_buff *skb;
+    err = create_cco_packet(session, SESSION_CTL, &skb);
+    if (err < 0)
+        goto exit_error;
+
+    SessionCtlMsg_t *msg;
+    msg = (SessionCtlMsg_t *)skb_put(skb, sizeof(SessionCtlMsg_t));
+    msg->msg_type = SESSION_CTL_HANDSHAKE_RESPONSE;
 
     err = packet_send(session, skb);
     if (err < 0)
@@ -198,6 +266,8 @@ exit_error:
     return err;
 }
 
+uint8_t current_generation_id = 0;
+
 static int create_cco_packet(struct cco_session *session, uint8_t msg_type,
                              struct sk_buff **skb_out)
 {
@@ -237,7 +307,7 @@ static int create_cco_packet(struct cco_session *session, uint8_t msg_type,
     // Create cco header
     Msg_t *msg = (Msg_t *)skb_put(skb, sizeof(Msg_t));
     msg->magic = htonl(CCO_MAGIC);
-    msg->generation_id = session->generation_id;
+    msg->generation_id = current_generation_id;
     msg->msg_type = msg_type;
 
     *skb_out = skb;
