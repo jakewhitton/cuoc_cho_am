@@ -34,6 +34,15 @@ static int cco_pcm_device_init(struct cco_pcm *pcm, struct cco_device *dev,
         capture_substreams = 1;
     }
 
+    pcm->active = false;
+
+    INIT_LIST_HEAD(&pcm->periods);
+    for (int i = 0; i < ARRAY_SIZE(pcm->cursors); ++i) {
+        pcm->cursors[i] = &pcm->periods;
+    }
+
+    pcm->dev = dev;
+
     // Set up pcm device
     struct snd_pcm *pcm_tmp;
     err = snd_pcm_new(
@@ -60,15 +69,6 @@ static int cco_pcm_device_init(struct cco_pcm *pcm, struct cco_device *dev,
     }
 
     pcm->pcm = pcm_tmp;
-
-    pcm->active = false;
-
-    INIT_LIST_HEAD(&pcm->periods);
-    for (int i = 0; i < ARRAY_SIZE(pcm->cursors); ++i) {
-        pcm->cursors[i] = &pcm->periods;
-    }
-
-    pcm->dev = dev;
 
     return 0;
 
@@ -582,7 +582,7 @@ static int cco_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
     struct cco_pcm_impl *impl = substream->runtime->private_data;
 
     struct cco_device *dev = snd_pcm_substream_chip(substream);
-    struct cco_session *session = dev->session;
+    //struct cco_session *session = dev->session;
 
     // Deduce which pcm instance is being triggered
     struct cco_pcm *pcm = NULL;
@@ -599,8 +599,8 @@ static int cco_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
         case SNDRV_PCM_TRIGGER_START:
 
             // Communicate change in stream state to FPGA
-            pcm->active = true;
-            send_pcm_ctl(session);
+            //pcm->active = true;
+            //send_pcm_ctl(session);
 
             spin_lock(&impl->lock);
             impl->base_time = jiffies;
@@ -612,8 +612,8 @@ static int cco_pcm_trigger(struct snd_pcm_substream *substream, int cmd)
         case SNDRV_PCM_TRIGGER_STOP:
 
             // Communicate change in stream state to FPGA
-            pcm->active = false;
-            send_pcm_ctl(session);
+            //pcm->active = false;
+            //send_pcm_ctl(session);
 
             spin_lock(&impl->lock);
             del_timer(&impl->timer);
@@ -761,15 +761,17 @@ static int pcm_manager(void * data)
         while (true) {
             err = cco_pcm_get_period(&dev->playback, &skb);
             if (err == 0) {
-                packet_send(session, skb);
+				if (dev->playback.active) {
+					packet_send(session, skb);
+				} else {
+					kfree_skb(skb);
+				}
             } else if (err < 0 && err != -ENODATA) {
                 goto exit_error;
             } else {
                 break;
             }
         }
-
-        msleep(1);
     }
 
     return 0;

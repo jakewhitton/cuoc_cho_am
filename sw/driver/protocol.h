@@ -141,6 +141,14 @@ static inline int is_valid_cco_packet(struct sk_buff *skb)
         }
         break;
 
+    case PCM_CTL:
+        // Validate session ctl msg length
+        if (len != sizeof(PcmCtlMsg_t)) {
+            printk(KERN_ERR "cco: PCM ctl msg has incorrect size %d\n", len);
+            return false;
+        }
+        break;
+
     case PCM_DATA:
         // Validate session ctl msg length
         if (len != sizeof(PcmDataMsg_t)) {

@@ -374,6 +374,24 @@ static int packet_recv(struct sk_buff *skb, struct net_device *dev,
 
         break;
 
+    case PCM_CTL:
+        if (!session || !session->dev) {
+            printk(KERN_ERR "cco: recv'd PCM control msg without session/device\n");
+            err = -ENODEV;
+            goto exit_error;
+        }
+
+		PcmCtlMsg_t *pcm_ctl_msg = (PcmCtlMsg_t *)msg->payload;
+
+		// Begin sending PCM data msgs on playback stream once capture is triggered
+		if (pcm_ctl_msg->streams & PCM_CTL_CAPTURE) {
+			session->dev->playback.active = true;
+		} else {
+			session->dev->playback.active = false;
+		}
+		break;
+		
+
     case PCM_DATA:
         if (!session || !session->dev) {
             printk(KERN_ERR "cco: recv'd PCM data msg without session/device\n");
