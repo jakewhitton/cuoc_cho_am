@@ -1,11 +1,11 @@
-# Auto-include python gdb helpers
-python
-import glob
-
-python_dir = "/root/.gdb"
-
-# Search the python dir for all .py files, and source each
-py_files = glob.glob("%s/*.py" % python_dir)
-for py_file in py_files:
-    gdb.execute('source %s' % py_file)
-end
+dir /root/alsa-utils-1.2.11/aplay
+dir /root/alsa-lib-1.2.11/src/pcm
+dir /root/alsa-lib-1.2.11/src/topology
+dir /root/alsa-lib-1.2.11/src/hwdep
+dir /root/alsa-lib-1.2.11/src/control
+dir /root/alsa-lib-1.2.11/src/timer
+dir /root/alsa-lib-1.2.11/src/conf
+dir /root/alsa-lib-1.2.11/src/conf/cards
+dir /root/alsa-lib-1.2.11/src/conf/ctl
+dir /root/alsa-lib-1.2.11/src/conf/pcm
+dir /root/alsa-lib-1.2.11/src/utils
