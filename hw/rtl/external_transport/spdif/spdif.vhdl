@@ -3,6 +3,12 @@ library ieee;
     use ieee.numeric_std.all;
     use ieee.math_real.all;
 
+library sw_transport;
+    use sw_transport.ethernet.all;
+
+library util;
+    use util.audio.all;
+
 package spdif is
 
     -- Timing parameters:
@@ -112,6 +118,16 @@ package spdif is
     constant STATUS_BIT_CHANNEL : natural := 30;
     constant STATUS_BIT_PARITY  : natural := LAST_STATUS_BIT;
 
+    type SpdifPhyPins_t is record
+        rx : std_logic;
+        tx : std_logic;
+    end record;
+
+    view SpdifPhy_t of SpdifPhyPins_t is
+        rx : in;
+        tx : out;
+    end view;
+
     -- Component for reading data from S/PDIF (reference implementation)
     component spdif_rx_serial_bridge is
         generic (
@@ -147,37 +163,35 @@ package spdif is
         );
     end component;
 
-    -- Receive S/PDIF data
-    component spdif_rx is
-        port (
-            i_clk     : in  std_logic;
-            i_spdif   : in  std_logic;
-            o_valid   : out std_logic;
-            o_channel : out std_logic;
-            o_sample  : out std_logic_vector(23 downto 0);
-            o_sclk    : out std_logic
-        );
-    end component;
-
     -- Transmit S/PDIF data
     component spdif_tx is
         port (
-            i_clk             : in  std_logic;
-            i_subframe        : in  Subframe_t;
-            i_channel_left    : in  std_logic_vector(0 to 191);
-            i_channel_right   : in  std_logic_vector(0 to 191);
-            i_enable          : in  std_logic;
-            o_finish_subframe : out std_logic;
-            o_spdif           : out std_logic
+            i_clk    : in   std_logic;
+            i_active : in   std_logic;
+            reader   : view PeriodFifo_Reader_t;
+            o_spdif  : out  std_logic;
+        );
+    end component;
+
+    -- Receive S/PDIF data
+    component spdif_rx is
+        port (
+            i_clk    : in   std_logic;
+            i_spdif  : in   std_logic;
+            i_active : in   std_logic;
+            writer   : view PeriodFifo_Writer_t;
+            o_sclk   : out  std_logic;
         );
     end component;
 
     -- Transmit and receive S/PDIF data
     component spdif_trx is
         port (
-            i_clk   : in  std_logic;
-            i_spdif : in  std_logic;
-            o_spdif : out std_logic
+            i_clk           : in   std_logic;
+            i_streams       : in   Streams_t;
+            playback_reader : view PeriodFifo_Reader_t;
+            capture_writer  : view PeriodFifo_Writer_t;
+            phy             : view SpdifPhy_t;
         );
     end component;
 

@@ -71,8 +71,6 @@ void cco_ethernet_exit(void)
 static int create_cco_packet(struct cco_session *session, uint8_t msg_type,
                              struct sk_buff **skb_out);
 
-static int packet_send(struct cco_session *session, struct sk_buff *skb);
-
 int send_handshake_request(struct cco_session *session)
 {
     int err;
@@ -145,6 +143,61 @@ exit_error:
     return err;
 }
 
+int send_pcm_ctl(struct cco_session *session)
+{
+    int err;
+
+    // Deduce streams flags based on stream state
+    struct cco_device *dev = session->dev;
+    uint8_t streams = 0;
+    if (dev->playback.active)
+        streams |= PCM_CTL_PLAYBACK;
+    if (dev->capture.active)
+        streams |= PCM_CTL_CAPTURE;
+
+    struct sk_buff *skb;
+    err = create_cco_packet(session, PCM_CTL, &skb);
+    if (err < 0)
+        goto exit_error;
+
+    PcmCtlMsg_t *msg;
+    msg = (PcmCtlMsg_t *)skb_put(skb, sizeof(PcmCtlMsg_t));
+    msg->streams = streams;
+
+    err = packet_send(session, skb);
+    if (err < 0)
+        goto exit_error;
+
+    return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
+
+int build_pcm_data(struct cco_session *session, uint32_t seqnum,
+                   struct sk_buff **result)
+{
+    int err;
+
+    struct sk_buff *skb;
+    err = create_cco_packet(session, PCM_DATA, &skb);
+    if (err < 0)
+        goto exit_error;
+
+    PcmDataMsg_t *msg;
+    msg = (PcmDataMsg_t *)skb_put(skb, sizeof(PcmDataMsg_t));
+    msg->seqnum = htonl(seqnum);
+
+    *result = skb;
+
+    return 0;
+
+exit_error:
+    CCO_LOG_FUNCTION_FAILURE(err);
+    return err;
+}
+
 static int create_cco_packet(struct cco_session *session, uint8_t msg_type,
                              struct sk_buff **skb_out)
 {
@@ -155,6 +208,12 @@ static int create_cco_packet(struct cco_session *session, uint8_t msg_type,
     switch (msg_type) {
     case SESSION_CTL:
         len += sizeof(SessionCtlMsg_t);
+        break;
+    case PCM_CTL:
+        len += sizeof(PcmCtlMsg_t);
+        break;
+    case PCM_DATA:
+        len += sizeof(PcmDataMsg_t);
         break;
     default:
         printk(KERN_ERR "cco: \"%d\" is not a valid msgtype\n", msg_type);
@@ -190,7 +249,7 @@ exit_error:
     return err;
 }
 
-static int packet_send(struct cco_session *session, struct sk_buff *skb)
+int packet_send(struct cco_session *session, struct sk_buff *skb)
 {
     int err;
 

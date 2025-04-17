@@ -16,3 +16,7 @@ c()
 		modprobe -r cco
     fi
 }
+
+alias p='aplay /root/test.wav &> /dev/null'
+
+alias r='arecord -D hw:0,1 -d 1 -c 2 -I -r48000 -f S24_BE /tmp/test.wav'

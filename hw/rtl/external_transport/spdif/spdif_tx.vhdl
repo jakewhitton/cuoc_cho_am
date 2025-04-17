@@ -2,63 +2,76 @@ library ieee;
     use ieee.std_logic_1164.all;
     use ieee.numeric_std.all;
 
+library util;
+    use util.audio.all;
+
 library work;
     use work.spdif.all;
 
 entity spdif_tx is
     port (
-        i_clk             : in  std_logic;
-        i_subframe        : in  Subframe_t;
-        i_channel_left    : in  std_logic_vector(0 to 191);
-        i_channel_right   : in  std_logic_vector(0 to 191);
-        i_enable          : in  std_logic;
-        o_finish_subframe : out std_logic;
-        o_spdif           : out std_logic
+        i_clk    : in   std_logic;
+        i_active : in   std_logic;
+        reader   : view PeriodFifo_Reader_t;
+        o_spdif  : out  std_logic;
     );
 end spdif_tx;
 
 architecture behavioral of spdif_tx is
 
-    -- Preamble to use during next subframe
-    signal preamble_transitions : Spdif_Preamble_t := (others => '0');
+    -- Clock conversion
+    signal tx_clk : std_logic := '0';
 
     -- Timing state
-    signal sclk     : std_logic := '0';
     signal frame    : natural   := 0;
     signal subframe : std_logic := '0';
     signal bit_pos  : natural   := 0;
     signal timeslot : std_logic := '0';
 
+    -- Sample selection state
+    signal period_in  : Period_t := Period_t_INIT;
+    signal period     : Period_t := Period_t_INIT;
+    signal pos        : natural  := 0;
+    signal period_end : natural  := 0;
+    signal sample     : Sample_t := Sample_t_INIT;
+
+    -- Mocked period
+    constant multiplier  : natural  := 2097151 / PERIOD_SIZE;
+    signal   mock_period : Period_t := Period_t_INIT;
+
     -- Transmit state
-    type State_t is (
+    type TransmitState_t is (
         INIT,
         PREAMBLE,
         AUX,
         DATA,
-        STATUS,
-        SPINNING
+        STATUS
     );
-    signal state      : State_t   := INIT;
-    signal parity_bit : std_logic := '0';
+    signal tx_state    : TransmitState_t := INIT;
+    signal tx_subframe : Subframe_t      := Subframe_t_INIT;
+    signal parity_bit  : std_logic       := '0';
+
+    -- Helper state
+    signal preamble_transitions : Spdif_Preamble_t           := (others => '0');
+    signal channel_bits         : std_logic_vector(0 to 191) := (others => '0');
 
     -- Intermediate signals
     signal spdif : std_logic := '0';
 
 begin
 
-    -- Investigate current state of transmission, deduce correct
-    -- preamble to use at the beginning of the next frame, and save
-    -- it in `preamble_transitions`
-    preamble_transitions <= B_PREAMBLE_TRANSITIONS when frame = 0 and subframe = '0' else
-                            W_PREAMBLE_TRANSITIONS when subframe = '0' else
-                            M_PREAMBLE_TRANSITIONS when subframe = '1' else
-                            "00000000";
+    -- Convert 12.288MHz clk -> 6.144MHz clk
+    generate_tx_clk : process(i_clk)
+    begin
+        if rising_edge(i_clk) then
+            tx_clk <= not tx_clk;
+        end if;
+    end process;
 
     -- Timing handling
-    sclk <= i_clk; -- Works currently because i_clk period is manually set to ~81.38ns
-    maintain_timing_state_proc : process(sclk)
+    maintain_timing_state_proc : process(tx_clk)
     begin
-        if rising_edge(sclk) then
+        if rising_edge(tx_clk) then
             -- Increment frame
             if subframe = '1' and bit_pos = LAST_STATUS_BIT and timeslot = '1' then
                 if frame < 191 then
@@ -86,23 +99,65 @@ begin
             timeslot <= not timeslot;
         end if;
     end process;
-    o_finish_subframe <= subframe;
 
-    -- Note: states in the state machine have the responsibility of
-    -- negating the line in the moment of the outgoing transition
-    -- to another state.
-    transmit_sm_proc : process(sclk)
+    -- Shuttle data between period FIFO & tx_subframe
+    sample_selection_proc : process(tx_clk)
     begin
-        if rising_edge(sclk) then
-            case state is
+        if rising_edge(tx_clk) then
+
+            -- Will be overwritten later if needed
+            reader.enable <= '0';
+
+            -- Upon finishing transmitting subframe, select next sample
+            if subframe = '1' and bit_pos = 31 and timeslot = '1' then
+
+                pos <= (pos + 1) mod PERIOD_SIZE;
+
+                -- Load next period when needed
+                if frame = period_end then
+                    if reader.empty = '0' then
+                        period <= period_in;
+                        reader.enable <= '1';
+                    else
+                        period <= Period_t_INIT;
+                    end if;
+
+                    --period <= mock_period;
+
+                    pos <= 0;
+                    period_end <= (frame + PERIOD_SIZE) mod 192;
+                end if;
+            end if;
+        end if;
+    end process;
+    reader.clk <= tx_clk;
+    period_in <= reader.data;
+    sample <= period(to_integer(unsigned'("" & subframe)))(pos);
+    assign_aux : for i in 0 to 3 generate
+        tx_subframe.aux(i) <= sample(23 - i);
+    end generate assign_aux;
+    assign_data : for i in 0 to 19 generate
+        tx_subframe.data(i) <= sample(19 - i);
+    end generate assign_data;
+
+    --generate_mock_period : for i in 0 to PERIOD_SIZE - 1 generate
+    --    mock_period(0)(i) <= std_logic_vector(to_unsigned(i * multiplier, 24));
+    --    mock_period(1)(i) <= std_logic_vector(to_unsigned(i * multiplier, 24));
+    --end generate generate_mock_period;
+
+    -- Note: states in the state machine have the responsibility of negating the
+    -- line in the moment of the outgoing transition to another state.
+    transmit_sm_proc : process(tx_clk)
+    begin
+        if rising_edge(tx_clk) then
+            case tx_state is
                 when INIT =>
-                    -- If i_enable is asserted during rising edge before the
-                    -- first time slot of a new block of 192 frames, perform
-                    -- first transition of preamble, and transit to PREAMBLE to
+                    -- Wait until beginning of a new block, perform first
+                    -- transition of preamble, then switch to PREAMBLE state to
                     -- handle the rest
-                    if frame = 191 and subframe = '1' and bit_pos = 31 and timeslot = '1' and i_enable = '1' then
+                    if frame = 191 and subframe = '1' and bit_pos = 31 and timeslot = '1' then
                         spdif <= not spdif;
-                        state <= PREAMBLE;
+                        tx_state <= PREAMBLE;
                     end if;
 
                 when PREAMBLE =>
@@ -117,7 +172,7 @@ begin
 
                     if not (bit_pos = LAST_PREAMBLE_BIT and timeslot = '1') then
                         -- Only trigger signal transition when it is appropriate
-                        -- based on what is selecetd by decode_next_preamble_proc
+                        -- based on what the preamble selection logic prescribes
                         if preamble_transitions(2*bit_pos + to_integer(unsigned'("" & timeslot)) + 1) = '1' then
                             spdif <= not spdif;
                         end if;
@@ -126,14 +181,14 @@ begin
                         parity_bit <= '0';
 
                         spdif <= not spdif;
-                        state <= AUX;
+                        tx_state <= AUX;
                     end if;
 
                 when AUX =>
                     if not (bit_pos = LAST_AUX_BIT and timeslot = '1') then
                         if timeslot = '0' then
                             -- Signal transition only if aux bit is a '1'
-                            if i_subframe.aux(bit_pos - FIRST_AUX_BIT) = '1' then
+                            if tx_subframe.aux(bit_pos - FIRST_AUX_BIT) = '1' then
                                 spdif <= not spdif;
                                 parity_bit <= not parity_bit;
                             end if;
@@ -143,14 +198,14 @@ begin
                         end if;
                     else
                         spdif <= not spdif;
-                        state <= DATA;
+                        tx_state <= DATA;
                     end if;
 
                 when DATA =>
                     if not (bit_pos = LAST_DATA_BIT and timeslot = '1') then
                         if timeslot = '0' then
                             -- Signal transition only if data bit is a '1'
-                            if i_subframe.data(bit_pos - FIRST_DATA_BIT) = '1' then
+                            if tx_subframe.data(bit_pos - FIRST_DATA_BIT) = '1' then
                                 spdif <= not spdif;
                                 parity_bit <= not parity_bit;
                             end if;
@@ -160,7 +215,7 @@ begin
                         end if;
                     else
                         spdif <= not spdif;
-                        state <= STATUS;
+                        tx_state <= STATUS;
                     end if;
 
                 when STATUS =>
@@ -168,29 +223,21 @@ begin
                         if timeslot = '0' then
                             case bit_pos is
                                 when STATUS_BIT_VALID =>
-                                    if i_subframe.valid = '1' then
+                                    if tx_subframe.valid = '1' then
                                         spdif <= not spdif;
                                         parity_bit <= not parity_bit;
                                     end if;
                                     
                                 when STATUS_BIT_USER =>
-                                    if i_subframe.user = '1' then
+                                    if tx_subframe.user = '1' then
                                         spdif <= not spdif;
                                         parity_bit <= not parity_bit;
                                     end if;
-                                    -- Always assume user bit is a '0'
 
                                 when STATUS_BIT_CHANNEL =>
-                                    if subframe = '1' then
-                                        if i_channel_left(frame) = '1' then
-                                            spdif <= not spdif;
-                                            parity_bit <= not parity_bit;
-                                        end if;
-                                    else
-                                        if i_channel_right(frame) = '1' then
-                                            spdif <= not spdif;
-                                            parity_bit <= not parity_bit;
-                                        end if;
+                                    if tx_subframe.channel = '1' then
+                                        spdif <= not spdif;
+                                        parity_bit <= not parity_bit;
                                     end if;
 
                                 when STATUS_BIT_PARITY =>
@@ -216,7 +263,7 @@ begin
                             severity ERROR;
                         
                         spdif <= not spdif;
-                        state <= PREAMBLE;
+                        tx_state <= PREAMBLE;
                     end if;
 
                 when others =>
@@ -225,7 +272,28 @@ begin
             end case;
         end if;
     end process;
-
+    tx_subframe.valid <= '0';
+    tx_subframe.user <= '0';
+    tx_subframe.channel <= channel_bits(frame);
     o_spdif <= spdif;
+
+    -- Preamble selection based on timing params
+    preamble_transitions <= B_PREAMBLE_TRANSITIONS when frame = 0 and subframe = '0' else
+                            W_PREAMBLE_TRANSITIONS when subframe = '0' else
+                            M_PREAMBLE_TRANSITIONS when subframe = '1' else
+                            "00000000";
+
+    -- Channel bit setting
+    --
+    -- Note: see https://en.wikipedia.org/wiki/S/PDIF#Protocol_specifications
+    -- for more description of the meaning of these fields
+    --
+    channel_bits(2)        <= '1';       -- Copy permit
+    channel_bits(8 to 14)  <= "0101111"; -- Audio source category
+    channel_bits(20 to 23) <= "1000"
+                              when subframe = '0' else
+                              "0100";    -- Channel number
+    channel_bits(24 to 27) <= "0100";    -- Sampling frequency = 48khz
+    channel_bits(32 to 35) <= "1101";    -- Word length = 24 bit, full word
 
 end behavioral;

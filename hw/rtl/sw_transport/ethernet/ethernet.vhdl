@@ -1,13 +1,12 @@
+library util;
+    use util.audio.all;
+    use util.types.all;
+
 library ieee;
     use ieee.std_logic_1164.all;
     use ieee.numeric_std.all;
 
 package ethernet is
-
-    -- Unit conversions
-    constant BITS_PER_DIBIT  : natural := 2;
-    constant DIBITS_PER_BYTE : natural := 4;
-    constant BITS_PER_BYTE   : natural := DIBITS_PER_BYTE * BITS_PER_DIBIT;
 
     -- Reduced Media-Independent Interface (RMII) implements 100Mbps
     -- ethernet by presenting dibits (2-bit sequences) on the rising
@@ -88,54 +87,62 @@ package ethernet is
         section : FrameSection_t;
     ) return natural;
 
-    -- Record of ethernet PHY pins
-    type PhyPins_t is record
-        clkin  : std_logic;
-        -- RX interface
-        rxd    : Dibit_t;
+    -- Record for RX interface
+    type EthernetRxPhy_t is record
+        data   : Dibit_t;
         crs_dv : std_logic;
-        -- TX interface
-        txd    : Dibit_t;
-        tx_en  : std_logic;
+    end record;
+
+    -- Record for TX interface
+    type EthernetTxPhy_t is record
+        data   : Dibit_t;
+        enable : std_logic;
+    end record;
+
+    -- Record of ethernet PHY pins
+    type EthernetPhyPins_t is record
+        clkin  : std_logic;
+        rx     : EthernetRxPhy_t;
+        tx     : EthernetTxPhy_t;
     end record;
 
     -- View of ethernet PHY pins
     --
     -- Note: can be used as port in entity, preserves direction of each pin
-    view Phy_t of PhyPins_t is
-        clkin       : out;
-        -- RX interface
-        rxd, crs_dv : in;
-        -- TX interface
-        txd, tx_en  : out;
+    view EthernetPhy_t of EthernetPhyPins_t is
+        clkin : out;
+        rx    : in;
+        tx    : out;
     end view;
 
     -- Ethernet sending/receiving
     component ethernet_trx is
         port (
-            i_clk  : in   std_logic;
-            phy    : view Phy_t;
-            o_leds : out  std_logic_vector(15 downto 0);
+            i_clk           : in   std_logic;
+            phy             : view EthernetPhy_t;
+            playback_writer : view PeriodFifo_Writer_t;
+            capture_reader  : view PeriodFifo_Reader_t;
+            o_streams       : out  Streams_t;
         );
     end component;
 
     -- Ethernet receiving
     component ethernet_rx is
         port (
-            i_ref_clk : in   std_logic;
-            phy       : view Phy_t;
-            o_frame   : out  Frame_t;
-            o_valid   : out  std_logic;
+            i_ref_clk : in  std_logic;
+            phy       : in  EthernetRxPhy_t;
+            o_frame   : out Frame_t;
+            o_valid   : out std_logic;
         );
     end component;
 
     -- Ethernet sending
     component ethernet_tx is
         port (
-            i_ref_clk : in   std_logic;
-            phy       : view Phy_t;
-            i_frame   : in   Frame_t;
-            i_valid   : in   std_logic;
+            i_ref_clk : in  std_logic;
+            phy       : out EthernetTxPhy_t;
+            i_frame   : in  Frame_t;
+            i_valid   : in  std_logic;
         );
     end component;
 

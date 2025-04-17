@@ -1,16 +1,19 @@
+library work;
+    use work.ethernet.all;
+
+library util;
+    use util.types.all;
+
 library ieee;
     use ieee.std_logic_1164.all;
     use ieee.numeric_std.all;
 
-library work;
-    use work.ethernet.all;
-
 entity ethernet_rx is
     port (
-        i_ref_clk : in   std_logic;
-        phy       : view Phy_t;
-        o_frame   : out  Frame_t;
-        o_valid   : out  std_logic;
+        i_ref_clk : in  std_logic;
+        phy       : in  EthernetRxPhy_t;
+        o_frame   : out Frame_t;
+        o_valid   : out std_logic;
     );
 end ethernet_rx;
 
@@ -76,9 +79,9 @@ begin
                 -- Reset psfd_counter when preamble pattern is disrupted
                 if phy.crs_dv = '0' or
                     ( psfd_counter < PSFD_LAST_DIBIT
-                      and phy.rxd /= PSFD_VALID_DIBIT_REST ) or
+                      and phy.data /= PSFD_VALID_DIBIT_REST ) or
                     ( psfd_counter = PSFD_LAST_DIBIT
-                      and phy.rxd /= PSFD_VALID_DIBIT_LAST )
+                      and phy.data /= PSFD_VALID_DIBIT_LAST )
                 then
                     psfd_counter <= 0;
 
@@ -98,7 +101,7 @@ begin
             when STREAM_FRAME =>
                 -- If dibits are still being presented, pass them along
                 if phy.crs_dv = '1' then
-                    dibit_data <= phy.rxd;
+                    dibit_data <= phy.data;
                     dibit_valid <= '1';
 
                 -- Otherwise, signal end of dibit stream, then transit

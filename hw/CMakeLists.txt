@@ -44,6 +44,10 @@ set(RTL_SRC
     ${RTL_DIR}/util/signals/signals.vhdl
     ${RTL_DIR}/util/signals/clk_generator.vhdl
     ${RTL_DIR}/util/signals/phaser.vhdl
+    ${RTL_DIR}/util/audio/audio.vhdl
+    ${RTL_DIR}/util/audio/period_fifo.vhdl
+    ${RTL_DIR}/util/audio/period_loopback.vhdl
+    ${RTL_DIR}/util/types/types.vhdl
 )
 
 # Define each IP module that needs to be instantiated and synthesized
@@ -59,6 +63,7 @@ set(RTL_SRC
 set(IP_MODULES
     ip_clk_wizard_spdif
     ip_clk_wizard_ethernet
+    ip_sample_fifo
 )
 
 # Constraint sources

@@ -8,12 +8,15 @@
 #define CCO_HEARTBEAT_INTERVAL ((ktime_t)1 * NS_PER_SEC)
 #define CCO_TIMEOUT_INTERVAL   ((ktime_t)3 * CCO_HEARTBEAT_INTERVAL)
 
+/*===================================Header===================================*/
 // First 32 bits of the MD5 hash of the string "cuoc cho am"
 #define CCO_MAGIC 0x83f8ddef
 
 enum MsgType_t
 {
-    SESSION_CTL = 0
+    SESSION_CTL = 0,
+    PCM_CTL     = 1,
+    PCM_DATA    = 2
 };
 
 typedef struct
@@ -24,6 +27,10 @@ typedef struct
     char payload[];
 } __attribute__((packed)) Msg_t;
 
+/*============================================================================*/
+
+
+/*===============================Session control==============================*/
 enum SessionCtlMsgType_t
 {
     SESSION_CTL_ANNOUNCE           = 0,
@@ -38,6 +45,56 @@ typedef struct
     uint8_t msg_type;
 } __attribute__((packed)) SessionCtlMsg_t;
 
+/*============================================================================*/
+
+
+/*=================================PCM control================================*/
+#define PCM_CTL_PLAYBACK 0x1
+#define PCM_CTL_CAPTURE  0x2
+
+typedef struct
+{
+    uint8_t streams;
+} __attribute__((packed)) PcmCtlMsg_t;
+/*============================================================================*/
+
+
+/*==================================PCM data==================================*/
+#define CHANNELS_PER_PACKET 2
+#define SAMPLES_PER_CHANNEL 128
+
+// Note:
+//
+// The S/PDIF inputs & outputs on the FPGA always use 24-bit samples.  Because
+// of this, the snd_pcm_hardware defined in pcm.c announces support only for
+// 24-bit, big-endian samples.
+//
+// However, when running this way, snd_pcm_ops.copy() presents data that is
+// always left padded with zeroes such that each sample actually takes 4 bytes
+// in memory.
+//
+// To optimize the copying between ALSA's userspace buffers and the sk_buff's
+// that are used to communicate PCM data with the FPGA, we mimic this format in
+// our PCM data messages even though this is essentially burning bandwidth.
+//
+// This might be changed later if I discover a way to request a truly contiguous
+// 24-bit sample format from ALSA.
+#define SAMPLE_SIZE 4
+
+typedef struct
+{
+    char data[SAMPLES_PER_CHANNEL * SAMPLE_SIZE];
+} __attribute__((packed)) ChannelPcmData_t;
+
+typedef struct
+{
+    uint32_t seqnum;
+    ChannelPcmData_t channels[CHANNELS_PER_PACKET];
+} __attribute__((packed)) PcmDataMsg_t;
+/*============================================================================*/
+
+
+/*===================================Helpers==================================*/
 static inline int is_valid_cco_packet(struct sk_buff *skb)
 {
     struct ethhdr *hdr = eth_hdr(skb);
@@ -77,6 +134,15 @@ static inline int is_valid_cco_packet(struct sk_buff *skb)
             return false;
         }
         break;
+
+    case PCM_DATA:
+        // Validate session ctl msg length
+        if (len != sizeof(PcmDataMsg_t)) {
+            printk(KERN_ERR "cco: PCM data msg has incorrect size %d\n", len);
+            return false;
+        }
+        break;
+
     default:
         printk(KERN_ERR "cco: invalid base msg_type \"%d\"\n", msg->msg_type);
         return false;
@@ -90,5 +156,6 @@ static inline Msg_t *get_cco_msg(struct sk_buff *skb)
 {
     return (Msg_t *)skb->data;
 }
+/*============================================================================*/
 
 #endif

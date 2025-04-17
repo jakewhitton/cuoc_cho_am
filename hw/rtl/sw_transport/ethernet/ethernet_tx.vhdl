@@ -1,16 +1,20 @@
+library work;
+    use work.ethernet.all;
+
+library util;
+    use util.audio.all;
+    use util.types.all;
+
 library ieee;
     use ieee.std_logic_1164.all;
     use ieee.numeric_std.all;
 
-library work;
-    use work.ethernet.all;
-
 entity ethernet_tx is
     port (
-        i_ref_clk : in   std_logic;
-        phy       : view Phy_t;
-        i_frame   : in   Frame_t;
-        i_valid   : in   std_logic;
+        i_ref_clk : in  std_logic;
+        phy       : out EthernetTxPhy_t;
+        i_frame   : in  Frame_t;
+        i_valid   : in  std_logic;
     );
 end ethernet_tx;
 
@@ -188,8 +192,8 @@ begin
             prev_i_valid <= i_valid;
         end if;
     end process;
-    phy.txd <= txd;
-    phy.tx_en <= tx_en;
+    phy.data <= txd;
+    phy.enable <= tx_en;
 
     -- Frame check sequence calculator
     fcs_calculator : work.ethernet.fcs_calculator
